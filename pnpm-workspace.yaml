@@ -1,0 +1,8 @@
+packages:
+  - .
+
+allowBuilds:
+  next: true
+
+onlyBuiltDependencies:
+  - sharp
