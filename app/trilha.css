@@ -1,0 +1,7 @@
+.sidebar-footer .avatar { flex-shrink: 0; }
+.profile-name { min-width: 0; }
+.profile-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logout-btn { display: grid; place-items: center; width: 34px; height: 34px; color: #dce8de; background: transparent; border: 0; border-radius: 8px; }
+.logout-btn:hover, .logout-btn:focus-visible { color: white; background: #ffffff20; }
+.account-notice { padding: 12px 15px; margin: 0 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--sage); color: var(--forest); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.account-notice p { margin: 0; }
