@@ -8,6 +8,9 @@ export type Aluno = {
   passwordHash: string;
   passwordVersion: number;
   createdAt: Date;
+  status?: "pendente" | "ativo";
+  emailVerifiedAt?: Date;
+  emailConfirmation?: { hash: string; expiresAt: Date };
   passwordReset?: { hash: string; expiresAt: Date };
 };
 
@@ -23,6 +26,7 @@ export async function authStore() {
       db.collection("sessoes_alunos").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("limites_autenticacao").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
       db.collection("alunos").createIndex({ "passwordReset.hash": 1 }, { sparse: true }),
+      db.collection("alunos").createIndex({ "emailConfirmation.hash": 1 }, { sparse: true }),
     ]);
     return db;
   }).catch((error) => {

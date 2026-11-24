@@ -8,5 +8,5 @@ export const typingLevels = [
   { name: "Vogais e espaço", text: "aqui eu leio e aprendo" },
   { name: "Palavras", text: "mouse teclado pasta janela" },
   { name: "Frase curta", text: "Aprender fazendo é descobrir." },
-  { name: "Desafio escoteiro", text: "Cada descoberta abre um novo caminho." },
+  { name: "Desafio escoteiro", text: "Você já praticou? Amanhã tem mais 1 lição." },
 ];

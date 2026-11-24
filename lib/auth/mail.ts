@@ -1,11 +1,11 @@
 import "server-only";
 import { createTransport } from "nodemailer";
 
-export function resetMailConfig() {
+export const confirmationHours = 24;
+
+export function authMailConfig() {
   const { APP_URL, SMTP_HOST, SMTP_PORT = "587", SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
   if (!APP_URL || !SMTP_HOST || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) return null;
-  const port = Number(SMTP_PORT);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
   let url: URL;
   try {
     url = new URL(APP_URL);
@@ -16,25 +16,97 @@ export function resetMailConfig() {
       (process.env.NODE_ENV !== "production" && url.protocol === "http:" &&
         ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))) return null;
 
-  return { url, from: SMTP_FROM, transport: {
+  if (SMTP_HOST.trim().toLowerCase() === "smtp.resend.com" && SMTP_USER.trim() === "resend") {
+    return { url, from: SMTP_FROM, provider: "resend" as const, apiKey: SMTP_PASS.trim() };
+  }
+
+  const port = Number(SMTP_PORT);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+  return { url, from: SMTP_FROM, provider: "smtp" as const, transport: {
     host: SMTP_HOST,
     port,
     secure: port === 465,
     requireTLS: port !== 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
     connectionTimeout: 7500,
+    dnsTimeout: 5000,
+    greetingTimeout: 5000,
     socketTimeout: 10_000,
   } };
 }
 
-export async function sendResetMail(config: NonNullable<ReturnType<typeof resetMailConfig>>, email: string, token: string) {
-  const link = new URL("/redefinir-senha", config.url);
+export function logMailError(message: string, error: unknown) {
+  const mailError = error instanceof Error
+    ? error as Error & { code?: unknown; responseCode?: unknown; providerCode?: unknown }
+    : undefined;
+  const { code, responseCode, providerCode } = mailError ?? {};
+  console.error(message, {
+    code: safeCode(code),
+    responseCode: typeof responseCode === "number" && Number.isInteger(responseCode) ? responseCode : undefined,
+    providerCode: safeCode(providerCode),
+  });
+}
+
+function safeCode(value: unknown) {
+  return typeof value === "string" && /^[a-z0-9_]{1,48}$/i.test(value) ? value : undefined;
+}
+
+type MailConfig = NonNullable<ReturnType<typeof authMailConfig>>;
+type LinkEmail = { path: string; subject: string; intro: string; closing: string };
+
+async function sendLinkMail(config: MailConfig, email: string, token: string, template: LinkEmail) {
+  const link = new URL(template.path, config.url);
   link.hash = token;
 
-  await createTransport(config.transport).sendMail({
+  const message = {
     from: config.from,
-    to: email,
+    to: [email],
+    subject: template.subject,
+    text: `${template.intro}\n\n${link.href}\n\n${template.closing}`,
+  };
+  if (config.provider === "smtp") {
+    await createTransport(config.transport).sendMail(message);
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(message),
+    cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  }).catch((error: unknown) => {
+    const code = error instanceof Error && error.name === "TimeoutError" ? "RESEND_TIMEOUT" : "RESEND_NETWORK";
+    throw Object.assign(new Error("Falha na conexão HTTPS com o Resend."), { code });
+  });
+  const result: { id?: unknown; name?: unknown } | null = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw Object.assign(new Error("O Resend recusou o envio."), {
+      code: "RESEND_HTTP", responseCode: response.status, providerCode: safeCode(result?.name),
+    });
+  }
+  if (typeof result?.id !== "string" || !result.id) {
+    throw Object.assign(new Error("O Resend não retornou o identificador do e-mail."), {
+      code: "RESEND_RESPONSE", responseCode: response.status,
+    });
+  }
+}
+
+export function sendResetMail(config: MailConfig, email: string, token: string) {
+  return sendLinkMail(config, email, token, {
+    path: "/redefinir-senha",
     subject: "Redefina sua senha da Trilha Digital",
-    text: `Use este link para definir uma nova senha na Trilha Digital. O link vale por 30 minutos.\n\n${link.href}\n\nSe você não pediu a redefinição, ignore esta mensagem.`,
+    intro: "Use este link para definir uma nova senha na Trilha Digital. O link vale por 30 minutos.",
+    closing: "Se você não pediu a redefinição, ignore esta mensagem.",
+  });
+}
+
+export function sendConfirmationMail(config: MailConfig, email: string, token: string) {
+  return sendLinkMail(config, email, token, {
+    path: "/confirmar-email",
+    subject: "Confirme seu cadastro na Trilha Digital",
+    intro: `Se você criou uma conta na Trilha Digital, clique no link para ativá-la. O link vale por ${confirmationHours} horas.`,
+    closing: "Se você não criou essa conta, ignore esta mensagem.",
   });
 }

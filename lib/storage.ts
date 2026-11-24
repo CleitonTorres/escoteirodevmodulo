@@ -1,7 +1,10 @@
+import type { DesktopProgress } from "./desktop-files";
+
 export type Progress = {
   completed: number[];
   guide: string;
   typingBest: number;
+  desktop?: DesktopProgress;
 };
 
 export const emptyProgress: Progress = { completed: [], guide: "", typingBest: 0 };

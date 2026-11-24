@@ -7,7 +7,7 @@
 }
 
 .conta-panel {
-  width: min(100%, 440px);
+  width: min(100%, 32rem);
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -16,17 +16,35 @@
 }
 
 .conta-brand { padding: 0; color: var(--forest); }
-.conta-brand small { color: #51645a; }
-.conta-panel h1 { margin: 24px 0 8px; font: 800 27px/1.2 Manrope, sans-serif; color: var(--forest); }
-.conta-panel p { color: #51645a; margin: 0 0 20px; line-height: 1.5; }
-.conta-form { display: grid; gap: 14px; }
-.conta-field { display: grid; gap: 6px; font-weight: 600; }
-.conta-field input { border: 1px solid #bdc9c0; padding: 10px 12px; border-radius: 8px; color: var(--ink); min-width: 0; }
-.conta-field small { color: #51645a; font-weight: 400; }
-.conta-form .primary-btn { justify-content: center; min-height: 42px; font-size: 14px; }
-.conta-form .primary-btn:disabled { opacity: .6; cursor: wait; }
+.conta-brand b { font-size: 1.25rem; }
+.conta-brand small { color: var(--muted); font-size: var(--text-small); }
+.conta-panel h1 { margin: 1.5rem 0 0.75rem; font: 800 var(--title-size)/1.2 Manrope, system-ui, sans-serif; color: var(--forest); }
+.conta-panel p { color: var(--muted); margin: 0 0 1.25rem; }
+.conta-form { display: grid; gap: 1.125rem; }
+.conta-field { display: grid; gap: 0.375rem; font-weight: 600; }
+.conta-field input {
+  border: 1px solid var(--control-border);
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  color: var(--ink);
+  background: var(--white);
+  min-inline-size: 0;
+  min-block-size: var(--touch-size);
+  font-weight: 400;
+}
+.conta-field small { color: var(--muted); font-size: 1rem; font-weight: 400; overflow-wrap: anywhere; }
+.conta-form .primary-btn { justify-content: center; min-block-size: var(--touch-size); font-size: var(--text-body); }
+.conta-form .primary-btn:disabled { background: var(--muted); cursor: wait; }
 .conta-panel .conta-error { padding: 9px 11px; border-radius: 8px; margin: 0; background: #fdf0ee; color: #8a3026; }
 .conta-panel .conta-status { padding: 9px 11px; border-radius: 8px; background: var(--sage); color: var(--forest); }
 .conta-panel .conta-form .conta-status { margin: 0; }
-.conta-links { margin-top: 19px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
-.conta-links a { color: var(--forest); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.conta-links { margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.375rem 1.25rem; }
+.conta-links a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-size);
+  color: var(--forest);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}

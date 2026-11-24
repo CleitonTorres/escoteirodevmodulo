@@ -30,7 +30,7 @@ export async function currentAluno() {
   if (!session) return null;
 
   return alunos.findOne<Pick<WithId<Aluno>, "_id" | "nome">>(
-    { _id: session.alunoId, passwordVersion: session.passwordVersion },
+    { _id: session.alunoId, passwordVersion: session.passwordVersion, status: { $ne: "pendente" } },
     { projection: { nome: 1 } },
   );
 }
