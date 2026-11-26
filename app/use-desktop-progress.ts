@@ -6,7 +6,7 @@ import { salvarDesktop } from "./progresso-actions";
 
 type SaveState = { status: "ready" | "pending" | "saved" } | { status: "error"; message: string };
 
-export function useDesktopProgress(initial?: DesktopProgress) {
+export function useDesktopProgress(disciplinaId: string, initial?: DesktopProgress) {
   const [items, setItems] = useState(initial?.items ?? initialDesktopItems);
   const [state, setState] = useState<SaveState>({ status: initial ? "saved" : "ready" });
   const latest = useRef(items);
@@ -24,7 +24,7 @@ export function useDesktopProgress(initial?: DesktopProgress) {
       while (saved.current !== latest.current) {
         const draft = attempted.current ?? latest.current;
         attempted.current = draft;
-        const result = await salvarDesktop(draft, revision.current);
+        const result = await salvarDesktop(disciplinaId, draft, revision.current);
         if (!result.ok) {
           setState({ status: "error", message: result.error });
           return false;
@@ -42,7 +42,7 @@ export function useDesktopProgress(initial?: DesktopProgress) {
       return false;
     }).finally(() => { inFlight.current = null; });
     return inFlight.current;
-  }, []);
+  }, [disciplinaId]);
 
   function changeItems(update: SetStateAction<DesktopEntry[]>) {
     const next = typeof update === "function" ? update(latest.current) : update;

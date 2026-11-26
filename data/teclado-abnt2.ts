@@ -1,3 +1,5 @@
+import type { TypingEditAction } from "./disciplinas";
+
 export type Hand = "left" | "right";
 export type Finger = "little" | "ring" | "middle" | "index" | "thumb";
 
@@ -22,6 +24,9 @@ const leftFingers: Finger[] = ["little", "ring", "middle", "index", "index"];
 const rightFingers: Finger[] = ["index", "index", "middle", "ring", "little"];
 const shiftLeft = key("Shift esq.", left, "little", { width: 1.6 });
 const shiftRight = key("Shift dir.", right, "little", { width: 1.8 });
+const controlLeft = key("Ctrl esq.", left, "little", { width: 1.6 });
+const controlRight = key("Ctrl dir.", right, "little", { width: 1.6 });
+const arrowLeft = key("←", right, "index");
 const backspace = key("⌫", right, "little", { width: 1.5 });
 const space = key("Espaço", right, "thumb", { width: 5 });
 
@@ -49,7 +54,7 @@ export const keyboardRows = [
     key(",", right, "middle", { shifted: "<" }), key(".", right, "ring", { shifted: ">" }),
     key(";", right, "little", { shifted: ":" }), key("/", right, "little", { shifted: "?" }), shiftRight,
   ],
-  [space],
+  [controlLeft, space, controlRight, arrowLeft],
 ];
 
 const accentedKeys: Record<string, string> = { "\u0301": "´", "\u0300": "`", "\u0303": "~", "\u0302": "^", "\u0308": "¨" };
@@ -57,14 +62,14 @@ const fingerNames: Record<Finger, string> = {
   thumb: "Polegar", index: "Indicador", middle: "Dedo médio", ring: "Anelar", little: "Mindinho",
 };
 
-type Keystroke = { key: TypingKey; legend: string; shift?: TypingKey };
+type Keystroke = { key: TypingKey; legend: string; modifiers?: TypingKey[] };
 
 function keystroke(character: string): Keystroke | undefined {
   if (character === " ") return { key: space, legend: space.label };
   for (const row of keyboardRows) {
     for (const key of row) {
       if (key.label === character) return { key, legend: character };
-      if (key.shifted === character) return { key, legend: character, shift: key.hand === left ? shiftRight : shiftLeft };
+      if (key.shifted === character) return { key, legend: character, modifiers: [key.hand === left ? shiftRight : shiftLeft] };
     }
   }
 }
@@ -80,6 +85,25 @@ export function typingHint(character: string, needsCorrection = false): Keystrok
   const first = keystroke(accentedKeys[accent] ?? "");
   const second = keystroke(base);
   return first && second ? [first, second] : [];
+}
+
+export const typingEditInstructions: Record<TypingEditAction, string> = {
+  backspace: "Apague a letra anterior ou o texto que está selecionado.",
+  selectAll: "Selecione todo o rascunho com Ctrl + A (⌘ + A no Mac).",
+  deleteWord: "Apague a palavra anterior com Ctrl + Backspace (Option + Delete no Mac).",
+  selectWord: "Selecione a palavra anterior com Ctrl + Shift + ← (Option + Shift + ← no Mac).",
+};
+
+export function typingEditHint(action: TypingEditAction): Keystroke[] {
+  switch (action) {
+    case "backspace": return [{ key: backspace, legend: "Backspace" }];
+    case "selectAll": {
+      const letter = keystroke("a")!;
+      return [{ ...letter, legend: "A", modifiers: [controlRight] }];
+    }
+    case "deleteWord": return [{ key: backspace, legend: "Backspace", modifiers: [controlLeft] }];
+    case "selectWord": return [{ key: arrowLeft, legend: "Seta para a esquerda", modifiers: [controlLeft, shiftRight] }];
+  }
 }
 
 export function fingerInstruction({ hand, finger }: TypingKey) {

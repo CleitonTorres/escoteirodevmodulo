@@ -1,3 +1,6 @@
+import type { WordValue } from "./word-document";
+import type { SheetWorkbook } from "./sheet-workbook";
+
 export const desktopApps = ["Digitação", "Editor de texto", "Planilha", "Navegador"] as const;
 export type DesktopApp = typeof desktopApps[number];
 export type FolderId = string | null;
@@ -13,7 +16,7 @@ const desktopByteLimit = 500_000;
 
 type Entry = { id: string; name: string; parent: FolderId; slot?: number; deleted?: boolean; modifiedAt?: number };
 export type DesktopEntry = Entry & (
-  { kind: "folder" } | { kind: "file"; text?: string; cells?: string[][] } | { kind: "shortcut"; app: DesktopApp }
+  { kind: "folder" } | { kind: "file"; text?: string; cells?: string[][]; document?: WordValue["document"]; workbook?: SheetWorkbook } | { kind: "shortcut"; app: DesktopApp }
 );
 export type EntryKind = DesktopEntry["kind"];
 export type DesktopFile = Extract<DesktopEntry, { kind: "file" }>;
@@ -34,6 +37,10 @@ export function desktopFileApp(name: string) {
   if (/\.(csv|tsv|xlsx?|ods)$/i.test(name)) return "Planilha";
   if (/\.html?$/i.test(name)) return "Navegador";
   return "Editor de texto";
+}
+
+export function isDesktopDocument(name: string) {
+  return /\.docx?$/i.test(name);
 }
 
 export const initialDesktopItems: DesktopEntry[] = [

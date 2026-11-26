@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   Home,
   BookOpen,
@@ -19,84 +19,139 @@ import {
   Save,
   ArrowLeft,
   ArrowUpRight,
-  LockKeyhole,
   Star,
   Compass,
+  Lock,
+  MapPin,
 } from "lucide-react";
-import { lessons, monthNames, type Lesson } from "@/data/lessons";
-import { informaticaBasica, typingLevels } from "@/data/disciplinas";
-import { guideLimit, type Progress } from "@/lib/storage";
+import { initialTypingDraft, typingLevels, type Disciplina } from "@/data/disciplinas";
+import type { Lesson } from "@/data/lessons";
+import { lessonVideo } from "@/lib/lesson-video";
+import { lessonUnlocked, taskDone, type PracticeEvent } from "@/lib/practice";
+import type { Progress } from "@/lib/storage";
+import { typingMinimumScore, typingScore, type TypingAttempt } from "@/lib/typing-score";
 import { sair } from "./conta-actions";
-import { concluirAula, registrarDigitacao, salvarGuia } from "./progresso-actions";
+import { concluirAula, registrarDigitacao, registrarPratica, salvarGuia } from "./progresso-actions";
+import { FinishLesson, PracticeAssistant, PracticeChecklist, PracticeShortcuts } from "./lesson-practice";
 import TypingPanel from "./typing-panel";
 import DesktopLab, { type ExplorerWindow } from "./desktop-lab";
-import { desktopCellLimit, desktopFileApp, desktopSheetColumns, desktopSheetRows, desktopTextLimit, type DesktopFile } from "@/lib/desktop-files";
+import { desktopCellLimit, desktopFileApp, desktopSheetColumns, desktopSheetRows, desktopSizeError, desktopTextLimit, isDesktopDocument, type DesktopFile } from "@/lib/desktop-files";
+import { readWordDocument, wordFromText, type WordValue } from "@/lib/word-document";
 import { useDesktopProgress } from "./use-desktop-progress";
+import WordEditor from "./word-editor";
+import BrowserSimulator from "./browser-simulator";
 import Image from "next/image";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { sheetFromRows, sheetPlainText, sheetTextRows, type SheetWorkbook } from "@/lib/sheet-workbook";
 
-const sheetExample = [["Ferramenta", "Para que serve"], ["Teclado", "Digitar"], ["Mouse", "Apontar e clicar"]];
-const emptySheet = [["", ""], ["", ""], ["", ""]];
+const SheetEditor = dynamic(() => import("./sheet-editor"), {
+  ssr: false,
+  loading: () => <p role="status">Carregando o simulador de planilha…</p>,
+});
+const sheetExample = sheetFromRows("planilha-exemplo", "Planilha de exemplo", [
+  ["Material", "Quantidade", "Preço unitário", "Subtotal"], ["Caderno", "2", "12.5"], ["Lápis", "4", "2"], ["Borracha", "1", "3.5"], ["Total"],
+]);
+const exampleCells = sheetExample.sheets["folha-1"].cellData!;
+for (let row = 1; row <= 3; row++) exampleCells[row][3] = { f: `=B${row + 1}*C${row + 1}` };
+exampleCells[4][3] = { f: "=SUM(D2:D4)" };
 const localPageTags = new Set(
   "a article aside b blockquote br caption code dd div dl dt em figcaption figure footer h1 h2 h3 h4 h5 h6 header hr i li main nav ol p pre section small span strong style sub sup table tbody td th thead tr ul".split(" "),
 );
 const localPageAttributes = new Set(["class", "id", "style", "lang", "dir", "colspan", "rowspan"]);
+const practiceTools = { arquivos: "Área de trabalho", digitacao: "Digitação", navegador: "Navegador" };
+const trailDestination = { x: 292, y: 139 };
 
-export default function Trilha({ nome, initialProgress }: { nome: string; initialProgress: Progress }) {
-  const [view, setView] = useState("Início"),
-    [selected, setSelected] = useState(1),
+type GuideDraft = { value: WordValue; lessonId?: number };
+
+type TrilhaProps = {
+  nome: string;
+  studentId: string;
+  disciplina: Disciplina;
+  opcoesDisciplinas: Pick<Disciplina, "id" | "nome">[];
+  initialProgress: Progress;
+  preview?: { lessonId?: number };
+};
+
+export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas, initialProgress, preview }: TrilhaProps) {
+  const { aulas: lessons, meses: monthNames } = disciplina;
+  const previewStart = preview?.lessonId;
+  const router = useRouter();
+  const [preparingDiscipline, setPreparingDiscipline] = useState(false);
+  const [navigationPending, startTransition] = useTransition();
+  const [disciplineError, setDisciplineError] = useState("");
+  const switchingDiscipline = preparingDiscipline || navigationPending;
+  const [view, setView] = useState(previewStart === undefined ? "Início" : "Aula"),
+    [selected, setSelected] = useState<number | undefined>(previewStart ?? lessons[0]?.id),
     [progress, setProgress] = useState(initialProgress),
     [query, setQuery] = useState(""),
     [mobile, setMobile] = useState(false),
     [tab, setTab] = useState("Visão geral"),
     [level, setLevel] = useState(0),
-    [typed, setTyped] = useState(""),
+    [typingDraft, setTypingDraft] = useState(() => initialTypingDraft(0)),
     [explorer, setExplorer] = useState<ExplorerWindow>({ open: false, history: [null], index: 0, maximized: false }),
     [openFileId, setOpenFileId] = useState<string | null>(null),
     [desktopEditError, setDesktopEditError] = useState(""),
-    [doc, setDoc] = useState(initialProgress.guide),
+    [guideDraft, setGuideDraft] = useState<GuideDraft>(() => {
+      const legacy = wordFromText(initialProgress.guide, true);
+      const value = readWordDocument(initialProgress.guideDocument ?? legacy) ?? { document: legacy, text: initialProgress.guide };
+      return { value };
+    }),
     [sheet, setSheet] = useState(sheetExample),
-    [browserQuery, setBrowserQuery] = useState(""),
-    [browserSearch, setBrowserSearch] = useState(false);
-  const [guideState, setGuideState] = useState({ checked: initialProgress.guide, error: "" });
+    [sheetReset, setSheetReset] = useState(0);
+  const [guideState, setGuideState] = useState({ checked: guideDraft, error: "" });
   const [guidePending, setGuidePending] = useState(false);
-  const savingGuide = useRef(false);
+  const guideSaved = useRef(guideDraft);
+  const savingGuide = useRef<Promise<boolean> | null>(null);
+  const finishSheetEditing = useRef<(() => Promise<boolean>) | null>(null);
   const contentRef = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeMenuButton = useRef<HTMLButtonElement>(null);
   const [guideChanged, setGuideChanged] = useState(false);
   const [typingPending, setTypingPending] = useState(0);
-  const [typingRetry, setTypingRetry] = useState(0);
-  const desktop = useDesktopProgress(initialProgress.desktop);
+  const [typingResult, setTypingResult] = useState<TypingAttempt | null>(null);
+  const [typingSaveError, setTypingSaveError] = useState("");
+  const [practicing, setPracticing] = useState(false);
+  const [assistantMinimized, setAssistantMinimized] = useState(false);
+  const [practicePending, setPracticePending] = useState(0);
+  const [verifyingFile, setVerifyingFile] = useState(false);
+  const [practiceFailure, setPracticeFailure] = useState<{ event: PracticeEvent; message: string } | null>(null);
+  const practiceQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const desktop = useDesktopProgress(disciplina.id, initialProgress.desktop);
   const desktopItems = desktop.items;
   const desktopView = view === "Área de trabalho";
+  const simulatorView = desktopView || ["Editor de texto", "Planilha", "Navegador", "Digitação"].includes(view);
   const openFile = desktopItems.find((item): item is DesktopFile => item.id === openFileId && item.kind === "file");
-  const sheetRows = view === "Planilha" && openFile
-    ? openFile.cells ?? (openFile.text ? openFile.text.split(/\r?\n/).slice(0, desktopSheetRows).map((row) =>
-      row.split(",").slice(0, desktopSheetColumns).map((cell) => cell.slice(0, desktopCellLimit))) : emptySheet)
-    : sheet;
-  const guideError = guideState.checked === doc ? guideState.error : undefined;
-  const guideUnsaved = guidePending || guideState.checked !== doc || Boolean(guideError);
+  const guideError = guideState.checked === guideDraft ? guideState.error : undefined;
+  const guideUnsaved = guidePending || guideState.checked !== guideDraft || Boolean(guideError);
 
-  const submitGuide = useCallback(async (value: string) => {
-    if (savingGuide.current) return;
-    savingGuide.current = true;
+  const submitGuide = useCallback((draft: GuideDraft) => {
+    if (savingGuide.current) return savingGuide.current;
     setGuidePending(true);
-    try {
-      const result = await salvarGuia(value);
-      setGuideState({ checked: value, error: result.ok ? "" : result.error });
-    } catch {
-      setGuideState({ checked: value, error: "Não foi possível salvar o guia. Tente novamente." });
-    } finally {
-      savingGuide.current = false;
+    savingGuide.current = salvarGuia(disciplina.id, draft.value.text, draft.value.document, draft.lessonId, previewStart).then((result) => {
+      if (result.ok) {
+        guideSaved.current = draft;
+        const id = result.guideEditedLesson;
+        if (id !== undefined) setProgress((current) => current.guideEditedLessons?.includes(id) ? current
+          : { ...current, guideEditedLessons: [...(current.guideEditedLessons ?? []), id] });
+      }
+      setGuideState({ checked: draft, error: result.ok ? "" : result.error });
+      return result.ok;
+    }).catch(() => {
+      setGuideState({ checked: draft, error: "Não foi possível salvar o guia. Tente novamente." });
+      return false;
+    }).finally(() => {
+      savingGuide.current = null;
       setGuidePending(false);
-    }
-  }, []);
+    });
+    return savingGuide.current;
+  }, [disciplina.id, previewStart]);
 
   useEffect(() => {
-    if (guidePending || guideState.checked === doc) return;
-    const delay = window.setTimeout(() => void submitGuide(doc), 600);
+    if (guidePending || guideState.checked === guideDraft) return;
+    const delay = window.setTimeout(() => void submitGuide(guideDraft), 600);
     return () => window.clearTimeout(delay);
-  }, [doc, guidePending, guideState.checked, submitGuide]);
+  }, [guideDraft, guidePending, guideState.checked, submitGuide]);
 
   useEffect(() => {
     if (!guideUnsaved) return;
@@ -119,46 +174,101 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
   }, []);
 
   const guideEditorProps = {
-    value: doc,
-    setValue: (value: string) => {
+    name: "Meu Guia Digital",
+    value: guideDraft.value,
+    onChange: (value: WordValue) => {
       setGuideChanged(true);
-      setDoc(value.slice(0, guideLimit));
+      setGuideDraft({ value, lessonId: view === "Aula" && tab === "Meu guia" ? selected : undefined });
     },
     saved: guideChanged && !guideUnsaved,
     pending: guidePending,
     error: guideError,
     save: () => {
-      setGuideChanged(true);
-      if (guideUnsaved) void submitGuide(doc);
+      if (guideUnsaved) void submitGuide(guideDraft);
     },
   };
 
-  const lesson = lessons.find((x) => x.id === selected) as Lesson;
+  const lesson = lessons.find((x) => x.id === selected);
+  const practiceProgress = { ...progress, desktop: { items: desktopItems, revision: 0 } };
+  const pendingTasks = lesson?.practice.filter((task) => !taskDone(lesson.id, task, practiceProgress)) ?? [];
+  const tasksDone = (lesson?.practice.length ?? 0) - pendingTasks.length;
+  const hasPractice = Boolean(lesson?.practice.length || lesson?.exercise?.length);
+  const practiceAssistant = practicing && simulatorView && lesson?.practice.length && !progress.completed.includes(lesson.id) ? (
+    <PracticeAssistant task={pendingTasks[0]} minimized={assistantMinimized}
+      toggle={() => setAssistantMinimized((minimized) => !minimized)} openGuide={openGuide} />
+  ) : null;
+  const followingLesson = lesson && lessons[lessons.indexOf(lesson) + 1];
+  const practiceTool = lesson?.tool && practiceTools[lesson.tool];
   const initials = nome.trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join("").toUpperCase();
   const pendingLessons = lessons.filter((item) => !progress.completed.includes(item.id));
-  const nextLesson = pendingLessons[0] ?? lessons[lessons.length - 1];
+  const completedCount = lessons.length - pendingLessons.length;
+  const previewIndex = previewStart === undefined ? 0 : Math.max(0, lessons.findIndex(({ id }) => id === previewStart));
+  const homeLessons = previewIndex === 0 ? lessons : lessons.slice(previewIndex);
+  const homePendingLessons = previewIndex === 0 ? pendingLessons : homeLessons.filter(({ id }) => !progress.completed.includes(id));
+  const nextLesson = homePendingLessons[0] ?? homeLessons.at(-1);
+
+  async function flushWork() {
+    if (finishSheetEditing.current && !await finishSheetEditing.current()) return false;
+    if (!await desktop.flush()) return false;
+    await savingGuide.current;
+    return guideSaved.current === guideDraft || await submitGuide(guideDraft);
+  }
 
   async function complete(id: number) {
-    const result = await concluirAula(id);
+    if (!await flushWork()) return "Não foi possível salvar as alterações. Tente concluir a aula novamente.";
+    const result = await concluirAula(disciplina.id, id, previewStart);
     if (!result.ok) return result.error;
     setProgress((current) => current.completed.includes(id)
       ? current
       : { ...current, completed: [...current.completed, id] });
   }
 
-  async function saveTyping(level: number) {
-    if (level <= progress.typingBest) return;
+  function observePractice(event: PracticeEvent) {
+    if (!practicing || !lesson || progress.completed.includes(lesson.id) || !lesson.practice.some(({ check }) =>
+      check.kind === event.kind && (check.kind !== "desktop-event" ||
+        (event.kind === "desktop-event" && check.action === event.action && check.name.localeCompare(event.name, "pt-BR", { sensitivity: "base" }) === 0)),
+    )) return Promise.resolve({});
+    const fileOperation = event.kind === "desktop-event" && event.action !== "open";
+    if (fileOperation) setVerifyingFile(true);
+    setPracticePending((count) => count + 1);
+    setPracticeFailure(null);
+    const request = practiceQueue.current.then(async () => {
+      if (event.kind === "desktop-event" && !await desktop.flush()) throw new Error();
+      const result = await registrarPratica(disciplina.id, lesson.id, event, previewStart);
+      if (!result.ok) {
+        setPracticeFailure({ event, message: result.error });
+        return null;
+      }
+      if (fileOperation && Object.keys(result.evidence).length === 0) {
+        setPracticeFailure({ event, message: "Confira o nome do arquivo e a ordem das tarefas. Depois, tente novamente." });
+        return null;
+      }
+      setProgress((current) => ({ ...current, practiceEvidence: { ...current.practiceEvidence, ...result.evidence } }));
+      return result.evidence;
+    }).catch(() => {
+      setPracticeFailure({ event, message: "Não foi possível verificar a tarefa. Tente novamente." });
+      return null;
+    }).finally(() => {
+      setPracticePending((count) => count - 1);
+      if (fileOperation) setVerifyingFile(false);
+    });
+    practiceQueue.current = request;
+    return request;
+  }
+
+  async function saveTyping(attempt: TypingAttempt) {
+    if (attempt.level <= progress.typingBest) return;
+    setTypingSaveError("");
     setTypingPending((current) => current + 1);
     try {
-      const result = await registrarDigitacao(level);
+      const result = await registrarDigitacao(disciplina.id, attempt);
       if (!result.ok) {
-        setTypingRetry((current) => Math.max(current, level));
+        setTypingSaveError(result.error);
         return;
       }
-      setProgress((current) => ({ ...current, typingBest: Math.max(current.typingBest, level) }));
-      setTypingRetry((current) => current <= level ? 0 : current);
+      setProgress((current) => ({ ...current, typingBest: Math.max(current.typingBest, attempt.level) }));
     } catch {
-      setTypingRetry((current) => Math.max(current, level));
+      setTypingSaveError("Não foi possível salvar a nota. Tente novamente.");
     } finally {
       setTypingPending((current) => current - 1);
     }
@@ -167,7 +277,8 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
   const filtered = lessons.filter((x) =>
     x.title.toLowerCase().includes(query.toLowerCase()),
   );
-  const pct = Math.round((progress.completed.length / lessons.length) * 100);
+  const months = [...new Set(filtered.map(({ month }) => month))].sort((a, b) => a - b);
+  const pct = lessons.length ? Math.round((completedCount / lessons.length) * 100) : 0;
   const nav = [
     ["Início", Home],
     ["Aulas", BookOpen],
@@ -187,47 +298,110 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
     requestAnimationFrame(() => menuButton.current?.focus());
   }
 
+  async function navigateWithProgress(destination: string) {
+    if (switchingDiscipline || typingPending || practicePending) return;
+    setPreparingDiscipline(true);
+    setDisciplineError("");
+    const saveError = "Não foi possível salvar suas alterações. Tente novamente.";
+    try {
+      if (!await flushWork()) {
+        setDisciplineError(saveError);
+        return;
+      }
+      startTransition(() => router.replace(destination));
+    } catch {
+      setDisciplineError(saveError);
+    } finally {
+      setPreparingDiscipline(false);
+    }
+  }
+
+  function switchDiscipline(id: string) {
+    if (id === disciplina.id) return;
+    const path = preview ? "/gestao/visualizar" : "/";
+    void navigateWithProgress(`${path}?disciplina=${encodeURIComponent(id)}`);
+  }
+
+  function canOpenLesson(id: number) {
+    return lessonUnlocked(lessons, progress.completed, id, previewStart);
+  }
+
   function startLesson(id: number) {
+    if (!canOpenLesson(id) || practicePending) return;
+    setPracticing(false);
+    setAssistantMinimized(false);
+    setPracticeFailure(null);
     setOpenFileId(null);
     setSelected(id);
     setView("Aula");
     setTab("Visão geral");
-    setTyped("");
-    setLevel(0);
+    changeTypingLevel(0);
     setMobile(false);
     focusContent();
   }
-  function changeView(v: string) {
-    setOpenFileId(null);
-    setDesktopEditError("");
-    setView(v);
-    setMobile(false);
-    if (v === "Digitação") setTab("Digitação");
-    focusContent();
+  function changeView(v: string, afterNavigate?: () => void) {
+    const navigate = () => {
+      setOpenFileId(null);
+      setDesktopEditError("");
+      setView(v);
+      setMobile(false);
+      if (v === "Digitação") setTab("Digitação");
+      afterNavigate?.();
+      focusContent();
+    };
+    const finish = finishSheetEditing.current;
+    if (view !== "Planilha" || !finish) { navigate(); return; }
+    if (v === view && !openFile) { setMobile(false); focusContent(); return; }
+    void finish().then((saved) => {
+      if (saved || window.confirm("Há alterações da planilha que não podem ser salvas. Sair da planilha mesmo assim?")) navigate();
+    });
+  }
+
+  function openPractice() {
+    setPracticing(true);
+    changeView("Aula", () => setTab("Prática"));
+  }
+  function openGuide() {
+    changeView("Aula", () => setTab("Meu guia"));
   }
   function openDesktopFile(file: DesktopFile) {
     changeView(desktopFileApp(file.name));
     setOpenFileId(file.id);
   }
-  function editDesktopFile(id: string, content: Pick<DesktopFile, "text" | "cells">) {
-    const error = desktop.changeItems((items) => items.map((item) => item.id === id && item.kind === "file"
-      ? { ...item, text: content.text?.slice(0, desktopTextLimit), cells: content.cells, modifiedAt: Date.now() } : item));
+  function updateFile(items: typeof desktopItems, id: string, content: Pick<DesktopFile, "text" | "document" | "workbook">) {
+    const modifiedAt = Date.now();
+    return items.map((item) => item.id === id && item.kind === "file"
+      ? { ...item, text: content.text?.slice(0, desktopTextLimit), cells: undefined, document: content.document, workbook: content.workbook, modifiedAt } : item);
+  }
+  function editDesktopFile(id: string, content: Pick<DesktopFile, "text" | "document" | "workbook">) {
+    const error = desktop.changeItems((items) => updateFile(items, id, content));
     setDesktopEditError(error ?? "");
   }
-  function updateSheet(cells: string[][]) {
-    if (openFile) editDesktopFile(openFile.id, { cells });
-    else setSheet(cells);
-  }
   function changeTypingLevel(next: number) {
+    if (!Number.isInteger(next) || next < 0 || next >= typingLevels.length || next > progress.typingBest) return;
     setLevel(next);
-    setTyped("");
+    setTypingDraft(initialTypingDraft(next));
+    setTypingResult(null);
+    setTypingSaveError("");
   }
 
-  function completeTypingLevel() {
-    const next = level + 1;
-    void saveTyping(next);
-    if (next < typingLevels.length) changeTypingLevel(next);
+  function completeTypingLevel(attempt: TypingAttempt) {
+    setTypingResult(attempt);
+    if (typingScore(attempt.level, attempt.elapsedMs, attempt.errors) >= typingMinimumScore) void saveTyping(attempt);
   }
+
+  const typingPanelProps = {
+    level,
+    draft: typingDraft,
+    setLevel: changeTypingLevel,
+    setDraft: setTypingDraft,
+    onComplete: completeTypingLevel,
+    onRetrySave: () => { if (typingResult) void saveTyping(typingResult); },
+    result: typingResult,
+    saving: typingPending > 0,
+    saveError: typingSaveError,
+    best: progress.typingBest,
+  };
   const progressCard = (
     <div className="progress-card">
       <div className="progress-top">
@@ -237,7 +411,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
       <div className="progress-track" aria-hidden="true">
         <i style={{ width: `${pct}%` }} />
       </div>
-      <small>{progress.completed.length} de {lessons.length} aulas concluídas</small>
+      <small>{completedCount} de {lessons.length} aulas concluídas</small>
     </div>
   );
   const desktopSave = desktop.state.status === "error" ? (
@@ -250,6 +424,8 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
       desktop.state.status === "pending" ? "Salvando desktop…" : desktop.state.status === "saved" ? "Desktop salvo na sua conta" : "Salvamento automático"
     }</div>
   );
+
+  //Menu lateral.
   const sidebar = (
     <aside
       id="menu-trilha"
@@ -266,7 +442,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
           <Compass size={24} />
         </div>
         <div>
-          <b>trilha digital</b>
+          <b>Aprender Trilha Digital</b>
           <small>19º GE Coqueiral</small>
         </div>
         <button ref={closeMenuButton} className="close-mobile" onClick={closeMobileMenu} aria-label="Fechar menu">
@@ -274,14 +450,36 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
         </button>
       </div>
       <div className="group-tag">
-        <span className="tag-dot" /> ESCOTEIRO DEV <span>•</span> INFORMÁTICA
+        <span className="tag-dot" /> ESCOTEIRO DEV
+      </div>
+      <div className="discipline-picker">
+        <label htmlFor="disciplina-aluno">Disciplina</label>
+        <select
+          id="disciplina-aluno"
+          value={disciplina.id}
+          disabled={switchingDiscipline || typingPending > 0 || practicePending > 0}
+          onChange={(event) => void switchDiscipline(event.target.value)}
+        >
+          {opcoesDisciplinas.map(({ id, nome }) => <option key={id} value={id}>{nome}</option>)}
+        </select>
+        {switchingDiscipline && <small role="status">Salvando alterações…</small>}
+        {disciplineError && <small role="alert">{disciplineError}</small>}
       </div>
       <nav aria-label="Navegação da trilha">
+        {preview && <button type="button" className="nav-item" disabled={switchingDiscipline || typingPending > 0 || practicePending > 0}
+          onClick={() => {
+            const query = new URLSearchParams({ secao: "catalogo", disciplina: disciplina.id });
+            if (lesson) query.set("aula", String(lesson.id));
+            void navigateWithProgress(`/gestao?${query}`);
+          }}>
+          <ArrowLeft size={18} aria-hidden="true" /> Voltar à gestão
+        </button>}
         {nav.map(([label, Icon]) => (
           <button
             key={label}
             className={`nav-item ${view === label || (view === "Aula" && label === "Aulas") ? "active" : ""}`}
             aria-current={view === label || (view === "Aula" && label === "Aulas") ? "page" : undefined}
+            disabled={switchingDiscipline}
             onClick={() => changeView(label)}
           >
             <Icon size={18} aria-hidden="true" />
@@ -303,10 +501,11 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
         <div className="avatar" aria-hidden="true">{initials}</div>
         <div className="profile-name">
           <b title={nome}>{nome}</b>
-          <small>Aluno da Trilha Digital</small>
+          <small>{preview ? "Visualização de aula" : "Aluno da Trilha Digital"}</small>
         </div>
         <form action={async () => {
-          if (await desktop.flush()) await sair();
+          const sheetReady = await finishSheetEditing.current?.() ?? true;
+          if (sheetReady && await desktop.flush()) await sair();
           else {
             setMobile(false);
             if (window.confirm("Há alterações pendentes no desktop. Sair e descartar essas alterações?")) await sair();
@@ -314,7 +513,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
         }} onSubmit={(event) => {
           if (guideUnsaved && !window.confirm("Há alterações no guia aguardando salvamento. Sair mesmo assim?")) event.preventDefault();
         }}>
-          <button className="logout-btn" type="submit" aria-label="Sair da conta" title="Sair da conta"><LogOut size={17} /></button>
+          <button className="logout-btn" type="submit" aria-label="Sair da conta" title="Sair da conta" disabled={switchingDiscipline}><LogOut size={17} /></button>
         </form>
       </div>
     </aside>
@@ -324,7 +523,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
       <a className="skip-link" href="#conteudo-principal" tabIndex={mobile ? -1 : undefined}>Ir para o conteúdo</a>
       {sidebar}
       {mobile && <div className="scrim" aria-hidden="true" onClick={closeMobileMenu} />}
-      <div className="main" inert={mobile}>
+      <div className="main" inert={mobile || switchingDiscipline}>
         <header className="topbar">
           <button ref={menuButton} className="mobile-menu" onClick={() => setMobile(true)} aria-expanded={mobile} aria-controls="menu-trilha">
             <Menu size={21} aria-hidden="true" /> Menu
@@ -335,12 +534,30 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
           </div>
           <div className="top-actions">
             <span className="today">
-              <span className="online-dot" /> {informaticaBasica.nome}
+              <span className="online-dot" /> {disciplina.nome}
             </span>
             <div className="avatar small-avatar" aria-hidden="true">{initials}</div>
           </div>
         </header>
-        <main className={`content${desktopView ? " desktop-content" : ""}`} id="conteudo-principal" ref={contentRef} tabIndex={-1}>
+        <main className={`content${desktopView ? " desktop-content" : view === "Planilha" ? " training-sheet-content" : ""}`} id="conteudo-principal" ref={contentRef} tabIndex={-1}>
+          {practicing && lesson && simulatorView && (
+            <section className="practice-tools" aria-label="Prática da aula">
+              <button type="button" className="secondary-btn" onClick={openPractice}>
+                <ArrowLeft size={18} aria-hidden="true" /> Voltar às tarefas da aula
+              </button>
+              <details>
+                <summary>{tasksDone} de {lesson.practice.length} tarefas cumpridas</summary>
+                <PracticeChecklist lesson={lesson} progress={practiceProgress} />
+              </details>
+            </section>
+          )}
+          {practicing && practicePending > 0 && <p className="practice-notice" role="status">Verificando prática…</p>}
+          {practicing && practiceFailure && <div className="practice-notice" role="alert">
+            <p>{practiceFailure.message}</p>
+            <button type="button" className="secondary-btn" disabled={practicePending > 0} onClick={() => void observePractice(practiceFailure.event)}>
+              Repetir verificação
+            </button>
+          </div>}
           {openFile && <div className="desktop-file-return">
             <button className="secondary-btn" onClick={() => changeView("Área de trabalho")}>
               <ArrowLeft size={20} aria-hidden="true" /> Voltar à área de trabalho
@@ -349,12 +566,6 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
           </div>}
           {!openFile && !desktopView && desktop.state.status === "error" && desktopSave}
           {openFile && desktopEditError && <p className="account-notice" role="alert">{desktopEditError}</p>}
-          {typingRetry > progress.typingBest && (
-            <div className="account-notice">
-              <p role="alert">O resultado da digitação aguarda salvamento.</p>
-              <button className="secondary-btn" disabled={typingPending > 0} onClick={() => saveTyping(typingRetry)}>Tentar de novo</button>
-            </div>
-          )}
           {view === "Início" && (
             <>
               <div className="welcome-banner">
@@ -368,16 +579,16 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                     <em>Descobertas no mundo digital.</em>
                   </h1>
                   <p>
-                    Aprenda informática fazendo — um passo, uma prática e uma
-                    conquista de cada vez.
+                    Aprenda fazendo, um passo de cada vez.
                   </p>
-                  <button
+                  {nextLesson && <button
                     className="primary-btn"
+                    disabled={practicePending > 0}
                     onClick={() => startLesson(nextLesson.id)}
                   >
                     <Play size={16} fill="currentColor" /> Continuar aprendendo{" "}
                     <ChevronRight size={16} />
-                  </button>
+                  </button>}
                 </div>
                 <div className="banner-art" aria-hidden="true">
                   <Image 
@@ -388,18 +599,13 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                     quality={100}
                     />
                   <div className="sun-glow" />
-                  <div className="hill hill-one" />                  
-                  <div className="hill hill-two" />
-                  <div className="trail-sign">
-                    <Compass size={30} />
-                    <span>
-                      UMA NOVA
-                      <br />
-                      DESCOBERTA
-                    </span>
-                  </div>
-                  <span className="art-star star-one">✦</span>
-                  <span className="art-star star-two">✧</span>
+                  <svg className="banner-landscape" viewBox="0 0 400 208" preserveAspectRatio="none">
+                    <path className="banner-hill-back" d="M 0 181 C 95 167, 172 143, 255 138 C 309 132, 358 133, 400 147 V 208 H 0 Z" />
+                    <path className="banner-hill-front" d="M 0 166 C 100 153, 192 166, 249 208 H 0 Z" />
+                    <path className="banner-trail" d={`M 118 214 C 139 192, 194 189, 243 181 C 278 175, 302 170, 279 160 C 261 152, 224 158, 228 149 C 231 142, 263 145, ${trailDestination.x} ${trailDestination.y}`} />
+                    <MapPin className="banner-destination" x={trailDestination.x - 20} y={trailDestination.y - 36}
+                      size={40} strokeWidth={2.2} />
+                  </svg>
                 </div>
                 <div className="banner-foot">
                   <span>
@@ -413,19 +619,21 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   <span className="eyebrow">SUA PRÓXIMA DESCOBERTA</span>
                   <h2>Continue sua trilha</h2>
                 </div>
-                <button
+                {lessons.length > 0 && <button
                   className="link-button"
                   onClick={() => changeView("Aulas")}
                 >
                   Ver todas as aulas <ArrowUpRight size={15} />
-                </button>
+                </button>}
               </div>
+              {lessons.length === 0 && <p>As aulas desta disciplina ainda serão cadastradas.</p>}
               <div className="lesson-grid">
-                {(pendingLessons.length ? pendingLessons.slice(0, 3) : lessons.slice(-3))
+                {(homePendingLessons.length ? homePendingLessons.slice(0, 3) : homeLessons.slice(-3))
                   .map((l, i) => (
                     <button
                       className={`lesson-card ${i === 0 ? "featured" : ""}`}
                       key={l.id}
+                      disabled={!canOpenLesson(l.id) || practicePending > 0}
                       onClick={() => startLesson(l.id)}
                     >
                       <div className="lesson-card-top">
@@ -437,13 +645,15 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                             <>
                               <Check size={12} /> Concluída
                             </>
+                          ) : !canOpenLesson(l.id) ? (
+                            <><Lock size={16} aria-hidden="true" /> Bloqueada</>
                           ) : (
                             `AULA ${String(l.id).padStart(2, "0")}`
                           )}
                         </span>
                       </div>
                       <span className="card-month">
-                        MÊS {l.month} · {monthNames[l.month]}
+                        MÊS {l.month}{monthNames?.[l.month] && ` · ${monthNames[l.month]}`}
                       </span>
                       <h3>{l.title}</h3>
                       <p>{l.subtitle}</p>
@@ -497,7 +707,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                     Na natureza e na comunidade, cada descoberta é uma
                     oportunidade de crescer.
                   </p>
-                  <span>TRILHA COQUEIRAL · APRENDER FAZENDO</span>
+                  <span>APRENDER - TRILHA DIGITAL · APRENDER FAZENDO</span>
                 </div>
               </div>
             </>
@@ -507,11 +717,9 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
               <div className="page-heading">
                 <span className="eyebrow">SEU MAPA DE DESCOBERTAS</span>
                 <h1 tabIndex={-1}>Trilha de aulas</h1>
-                <p>
-                  Do primeiro clique à apresentação do seu próprio guia digital.
-                </p>
+                <p>{disciplina.nome}</p>
               </div>
-              <div className="search-box">
+              {lessons.length > 0 && <div className="search-box">
                 <Search size={17} />
                 <input
                   aria-label="Buscar uma aula"
@@ -519,14 +727,16 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
-              </div>
-              {[1, 2, 3].map((m) => (
+              </div>}
+              {lessons.length === 0 && <p>As aulas desta disciplina ainda serão cadastradas.</p>}
+              {lessons.length > 0 && filtered.length === 0 && <p>Nenhuma aula encontrada.</p>}
+              {months.map((m) => (
                 <section className="month-section" key={m}>
                   <div className="month-heading">
-                    <span className="month-number">0{m}</span>
+                    <span className="month-number" aria-hidden="true">{String(m).padStart(2, "0")}</span>
                     <div>
-                      <small>MÊS {m}</small>
-                      <h2>{monthNames[m]}</h2>
+                      {monthNames?.[m] && <small>MÊS {m}</small>}
+                      <h2>{monthNames?.[m] ?? `Mês ${m}`}</h2>
                     </div>
                     <span className="month-line" />
                   </div>
@@ -537,6 +747,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                         <button
                           key={l.id}
                           className="all-lesson"
+                          disabled={!canOpenLesson(l.id) || practicePending > 0}
                           onClick={() => startLesson(l.id)}
                         >
                           <span className="lesson-icon">{l.icon}</span>
@@ -550,6 +761,8 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                           >
                             {progress.completed.includes(l.id) ? (
                               <><Check size={14} aria-hidden="true" /><span className="sr-only">Concluída</span></>
+                            ) : !canOpenLesson(l.id) ? (
+                              <><Lock size={16} aria-hidden="true" /><span className="sr-only">Bloqueada</span></>
                             ) : (
                               <ChevronRight size={15} />
                             )}
@@ -561,7 +774,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
               ))}
             </>
           )}
-          {view === "Aula" && (
+          {view === "Aula" && lesson && canOpenLesson(lesson.id) && (
             <>
               <div className="lesson-hero">
                 <button
@@ -585,9 +798,9 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   <span>
                     <Clock size={14} /> 35 min
                   </span>
-                  <span>
-                    <BookOpen size={14} /> 4 etapas
-                  </span>
+                  {lesson.practice.length > 0 && <span>
+                    <BookOpen size={14} /> {lesson.practice.length} tarefas práticas
+                  </span>}
                   <span className="lesson-progress">
                     {progress.completed.includes(lesson.id)
                       ? "Aula concluída"
@@ -607,7 +820,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                     key={t}
                     className={tab === t ? "selected" : ""}
                     aria-pressed={tab === t}
-                    onClick={() => setTab(t)}
+                    onClick={() => t === "Prática" ? openPractice() : setTab(t)}
                   >
                     {t}
                   </button>
@@ -627,40 +840,23 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                         <p>{p}</p>
                       </div>
                     ))}
-                    <div className="video-card">
-                      <div className="video-play">
-                        <Play size={19} fill="currentColor" />
-                      </div>
-                      <div>
-                        <small>VÍDEO DA AULA · ESCOTEIRO DEV</small>
-                        <b>Assista à explicação e aprenda junto</b>
-                      </div>
-                      <a
-                        href={lesson.videoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Assistir o vídeo <ArrowUpRight size={14} />
-                      </a>
-                    </div>
+                    {tab === "Teoria" ? <LessonVideos lesson={lesson} /> : null}
+                    <LessonResources lesson={lesson} />
                     <button
                       className="primary-btn"
-                      onClick={() => setTab("Prática")}
+                      onClick={hasPractice ? openPractice : openGuide}
                     >
-                      Ir para a prática <ChevronRight size={16} />
+                      {hasPractice ? "Ir para a prática" : "Ir para Meu guia"} <ChevronRight size={16} />
                     </button>
                   </section>
                   <aside className="lesson-aside">
                     <div className="aside-card">
                       <span className="eyebrow">SEU DESAFIO PRÁTICO</span>
-                      <h3>{lesson.practice}</h3>
+                      <h3>{lesson.exercise?.length ? "Exercício da aula" : lesson.practice.length === 1
+                        ? "1 tarefa para praticar" : lesson.practice.length ? `${lesson.practice.length} tarefas para praticar` : "Atividade no guia"}</h3>
                       <button
                         className="secondary-btn"
-                        onClick={() => {
-                          setTab("Prática");
-                          if (lesson.tool === "arquivos")
-                            changeView("Área de trabalho");
-                        }}
+                        onClick={hasPractice ? openPractice : openGuide}
                       >
                         Começar exercício <Play size={15} />
                       </button>
@@ -679,14 +875,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                 </div>
               )}
               {tab === "Digitação" && (
-                <TypingPanel
-                  level={level}
-                  typed={typed}
-                  setLevel={changeTypingLevel}
-                  setTyped={setTyped}
-                  onComplete={completeTypingLevel}
-                  best={progress.typingBest}
-                />
+                <TypingPanel {...typingPanelProps} />
               )}
 
               {tab === "Prática" && (
@@ -695,20 +884,48 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   <span className="eyebrow">
                     EXERCÍCIO PRÁTICO · AULA {lesson.id}
                   </span>
-                  <h2>Agora é sua vez de experimentar</h2>
-                  <p>{lesson.practice}</p>
-                  <PracticeWidget
-                    key={lesson.id}
-                    tool={lesson.tool}
-                    changeView={changeView}
-                    done={progress.completed.includes(lesson.id)}
-                    complete={() => complete(lesson.id)}
-                  />
+                  <h2>Tarefas da aula</h2>
+                  {Boolean(lesson.exercise?.length) && (
+                    <section className="lesson-exercise">
+                      <h3>Passos do exercício</h3>
+                      <ol>{lesson.exercise?.map((step, index) => <li key={index}>{step}</li>)}</ol>
+                    </section>
+                  )}
+                  <LessonResources lesson={lesson} />
+                  {Boolean(lesson.exercise?.length && lesson.practice.length) && <h3>Verificação da aprendizagem</h3>}
+                  {lesson.practice.length > 0
+                    ? <p role="status">{tasksDone} de {lesson.practice.length} tarefas cumpridas</p>
+                    : !hasPractice && <p>A atividade desta aula está na aba Meu guia.</p>}
+                  {practiceTool && <button type="button" className="secondary-btn" onClick={() => changeView(practiceTool)}>
+                    Abrir {practiceTool} <ArrowUpRight size={17} aria-hidden="true" />
+                  </button>}
+                  {lesson.practice.some(({ check }) => check.kind === "shortcut") && <PracticeShortcuts observe={observePractice} />}
+                  {lesson.practice.length > 0 && <PracticeChecklist lesson={lesson} progress={practiceProgress} observe={observePractice} />}
+                  {pendingTasks.length === 0 && <button type="button" className="primary-btn" onClick={openGuide}>
+                    Ir para Meu guia <ChevronRight size={17} aria-hidden="true" />
+                  </button>}
                 </div>
               )}
 
               {tab === "Meu guia" && (
-                    <TextEditor {...guideEditorProps} />
+                <div className="lesson-guide">
+                  <section className="lesson-guide-instructions" aria-labelledby="lesson-guide-title">
+                    <h2 id="lesson-guide-title">Orientação para o guia</h2>
+                    <p>{lesson.guide}</p>
+                  </section>
+                  <WordEditor {...guideEditorProps} />
+                  <FinishLesson
+                    key={lesson.id}
+                    done={progress.completed.includes(lesson.id)}
+                    busy={practicePending > 0 || typingPending > 0 || guidePending}
+                    blockedReason={pendingTasks.length > 0
+                      ? "Conclua as tarefas da aba Prática para finalizar a aula."
+                      : progress.guideEditedLessons?.includes(lesson.id) ? undefined : "Edite e salve o guia para concluir a aula."}
+                    complete={() => complete(lesson.id)}
+                    next={followingLesson && canOpenLesson(followingLesson.id)
+                      ? () => startLesson(followingLesson.id) : undefined}
+                  />
+                </div>
               )}
             </>
           )}
@@ -723,14 +940,7 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   etapa.
                 </p>
               </div>
-              <TypingPanel
-                level={level}
-                typed={typed}
-                setLevel={changeTypingLevel}
-                setTyped={setTyped}
-                onComplete={completeTypingLevel}
-                best={progress.typingBest}
-              />
+              <TypingPanel {...typingPanelProps} />
             </>
           )}
 
@@ -741,7 +951,8 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                 {desktopSave}
               </div>
               <DesktopLab items={desktopItems} setItems={desktop.changeItems} explorer={explorer} setExplorer={setExplorer}
-                openApp={changeView} openFile={openDesktopFile} />
+                openApp={changeView} openFile={openDesktopFile} observe={observePractice} verifyingFile={verifyingFile}
+                assistant={practiceAssistant} />
             </>
           )}
 
@@ -754,9 +965,12 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   {openFile ? "Edite o conteúdo do arquivo de treino." : "Escreva e organize ideias para o guia da sua disciplina."}
                 </p>
               </div>
-              {openFile ? <TextEditor fileName={openFile.name}
-                value={(openFile.text ?? openFile.cells?.map((row) => row.join(",")).join("\n") ?? "").slice(0, desktopTextLimit)}
-                setValue={(text) => editDesktopFile(openFile.id, { text })} /> : <TextEditor {...guideEditorProps} />}
+              {!openFile ? <WordEditor {...guideEditorProps} /> : isDesktopDocument(openFile.name) ? (
+                <WordEditor key={openFile.id} name={openFile.name}
+                  value={{ document: openFile.document ?? wordFromText(fileText(openFile)), text: fileText(openFile) }}
+                  canChange={(value) => desktopSizeError(updateFile(desktopItems, openFile.id, value))}
+                  onChange={(value) => editDesktopFile(openFile.id, value)} />
+              ) : <PlainTextEditor name={openFile.name} value={fileText(openFile)} onChange={(text) => editDesktopFile(openFile.id, { text })} />}
             </>
           )}
 
@@ -767,30 +981,15 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   SIMULADOR · ORGANIZE INFORMAÇÕES
                 </span>
                 <h1 tabIndex={-1}>Planilha</h1>
-                <p>
-                  Edite células da tabela de treino e pratique organização de
-                  dados.
-                </p>
+                <p>{openFile ? "Edite células, aplique formatos e pratique fórmulas. As alterações são salvas na sua conta."
+                  : "Pratique edição e fórmulas na planilha de exemplo. Para guardar uma planilha na sua conta, crie um arquivo no desktop."}</p>
               </div>
-              <div className="sheet-card">
-                <div className="sheet-toolbar">
-                  <div className="sheet-brand">
-                    ▦ <b>{openFile?.name ?? "Planilha"}</b>
-                  </div>
-                  <button disabled={!!openFile && sheetRows.length >= desktopSheetRows}
-                    onClick={() => updateSheet([...sheetRows, openFile ? [] : ["Novo item", "Descrição"]])}>
-                    + Adicionar linha
-                  </button>
-                  {!openFile && <button onClick={() => setSheet(sheetExample)}>
-                    Restaurar exemplo
-                  </button>}
-                </div>
-                <div className="sheet-help">
-                  Selecione uma célula para editar. Use Tab para avançar entre as células.
-                  {!openFile && " As alterações são temporárias."}
-                </div>
-                <EditableSheet rows={sheetRows} onChange={updateSheet} cellLimit={openFile ? desktopCellLimit : undefined} />
-              </div>
+              {openFile ? <SheetEditor key={openFile.id} name={openFile.name} initial={fileWorkbook(openFile)}
+                onChange={(workbook) => desktop.changeItems((items) => updateFile(items, openFile.id, { workbook }))}
+                onSave={desktop.flush} busy={desktop.state.status === "pending"} finishEditing={finishSheetEditing} />
+                : <SheetEditor key={`example-${sheetReset}`} name="Planilha de exemplo" initial={sheet}
+                  onChange={(workbook: SheetWorkbook) => { setSheet(workbook); return undefined; }}
+                  onReset={() => { setSheet(sheetExample); setSheetReset((count) => count + 1); }} finishEditing={finishSheetEditing} />}
             </>
           )}
 
@@ -805,97 +1004,57 @@ export default function Trilha({ nome, initialProgress }: { nome: string; initia
                   {openFile ? "Visualize a página HTML do exercício." : "Explore páginas educativas de demonstração e pratique uma busca segura."}
                 </p>
               </div>
-              <div className="browser-card">
-                <div className="browser-chrome">
-                  <div className="browser-lights">
-                    <i />
-                    <i />
-                    <i />
+              {openFile ? (
+                <div className="browser-card">
+                  <div className="browser-chrome">
+                    <div className="address-bar"><FileText size={16} aria-hidden="true" /> file:///{openFile.name}</div>
                   </div>
-                  <div className="address-bar">
-                    {openFile ? <><FileText size={16} aria-hidden="true" /> file:///{openFile.name}</> :
-                      <><LockKeyhole size={13} /> https://aprenda.coqueiral.br</>}
-                  </div>
-                  <Globe size={16} />
+                  {openFile.text?.trim() ? (
+                    <iframe className="browser-file-preview" title={openFile.name} sandbox="" referrerPolicy="no-referrer"
+                      srcDoc={localPageSource(openFile.text)} />
+                  ) : <p className="browser-body">Esta página HTML está vazia.</p>}
                 </div>
-                {openFile ? (openFile.text?.trim() ? (
-                  <iframe className="browser-file-preview" title={openFile.name} sandbox="" referrerPolicy="no-referrer"
-                    srcDoc={localPageSource(openFile.text)} />
-                ) : <p className="browser-body">Esta página HTML está vazia.</p>) : <div className="browser-body">
-                  <div className="browser-logo">
-                    <Compass size={20} /> Aprenda<span>+</span>
-                  </div>
-                  <form
-                    className="browser-search"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      setBrowserSearch(true);
-                    }}
-                  >
-                    <Search size={17} />
-                    <input
-                      aria-label="Tema da pesquisa"
-                      value={browserQuery}
-                      onChange={(e) => setBrowserQuery(e.target.value)}
-                      placeholder="Pesquise um tema para aprender"
-                    />
-                    <button>Pesquisar</button>
-                  </form>
-                  {browserSearch ? (
-                    <div className="search-results" aria-live="polite">
-                      <small>
-                        RESULTADOS DE TREINO PARA “
-                        {browserQuery || "INFORMÁTICA"}”
-                      </small>
-                      {[
-                        "Como criar uma senha segura",
-                        "O que é um navegador de internet?",
-                        "Dicas para organizar seus arquivos",
-                      ].map((r, i) => (
-                        <article key={i}>
-                          <h3>{r}</h3>
-                          <p>
-                            Aprenda com exemplos claros e seguros. Lembre-se de
-                            conferir a fonte da informação.
-                          </p>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="browser-topics">
-                      {[
-                        ["01", "Segurança digital", "Proteja seus dados"],
-                        [
-                          "02",
-                          "Informática básica",
-                          "Aprenda os primeiros passos",
-                        ],
-                        [
-                          "03",
-                          "Cidadania digital",
-                          "Navegue com responsabilidade",
-                        ],
-                      ].map(([n, t, d]) => (
-                        <div key={n}>
-                          <span>{n}</span>
-                          <b>{t}</b>
-                          <small>{d}</small>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="browser-warning">
-                    <LockKeyhole size={15} /> Esta é uma internet simulada.
-                    Nenhum dado é enviado ou coletado.
-                  </div>
-                </div>}
-              </div>
+              ) : <BrowserSimulator studentId={studentId} observe={observePractice} />}
             </>
           )}
+          {!desktopView && practiceAssistant}
         </main>
       </div>
     </div>
   );
+}
+
+function LessonResources({ lesson }: { lesson: Lesson }) {
+  if (!lesson.resources?.length) return null;
+  return (
+    <section className="lesson-resources">
+      <h3>Recursos da aula</h3>
+      <ul>{lesson.resources.map(({ title, url }, index) => (
+        <li key={`${url}:${index}`}><a href={url} target="_blank" rel="noopener noreferrer">{title}</a></li>
+      ))}</ul>
+    </section>
+  );
+}
+
+function LessonVideos({ lesson }: { lesson: Lesson }) {
+  const videos = (lesson.videoUrl ?? []).map(lessonVideo).filter((video) => video !== undefined);
+  if (!videos.length) return null;
+  return <section className="lesson-videos" aria-label="Vídeos da aula">
+    <h3>Vídeos da aula</h3>
+    {videos.map(({ href, embed }, index) => <div className="lesson-video" key={`${href}:${index}`}>
+      {embed && <iframe
+        src={embed}
+        title={`Vídeo ${index + 1} · ${lesson.title}`}
+        loading="lazy"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allow="encrypted-media; picture-in-picture; web-share"
+        allowFullScreen
+      />}
+      <a className="link-button" href={href} target="_blank" rel="noreferrer">
+        {embed ? "Abrir no YouTube" : "Abrir vídeo em nova aba"} <ArrowUpRight size={15} aria-hidden="true" />
+      </a>
+    </div>)}
+  </section>;
 }
 
 function localPageSource(html: string) {
@@ -917,191 +1076,31 @@ function localPageSource(html: string) {
     </head><body>${template.innerHTML}</body></html>`;
 }
 
-function TextEditor({
-  value,
-  setValue,
-  fileName,
-  saved,
-  pending,
-  error,
-  save,
-}: {
+function fileText(file: DesktopFile) {
+  return (file.text ?? (file.workbook ? sheetPlainText(file.workbook) : file.cells?.map((row) => row.join(",")).join("\n")) ?? "").slice(0, desktopTextLimit);
+}
+
+function fileWorkbook(file: DesktopFile) {
+  if (file.workbook) return { ...file.workbook, name: file.name };
+  const delimiter = /\.tsv$/i.test(file.name) ? "\t" : ",";
+  const rows = file.cells ?? sheetTextRows(file.text ?? "", delimiter, {
+    rows: desktopSheetRows, columns: desktopSheetColumns, characters: desktopCellLimit,
+  });
+  return sheetFromRows(file.id, file.name, rows);
+}
+
+function PlainTextEditor({ name, value, onChange }: {
+  name: string;
   value: string;
-  setValue: (s: string) => void;
-  fileName?: string;
-  saved?: boolean;
-  pending?: boolean;
-  error?: string;
-  save?: () => void;
+  onChange: (text: string) => void;
 }) {
-  const words = value.trim() ? value.trim().split(/\s+/).length : 0;
   return (
     <div className="editor-card">
       <div className="editor-toolbar">
-        <span className="editor-brand">
-          W <b>{fileName ?? "Meu Guia Digital"}</b>
-        </span>
-        <button onClick={() => setValue(value + "\n\n## Nova seção\n")}>
-          + Nova seção
-        </button>
-        {save && <button className="save-btn" onClick={save} disabled={pending}>
-          <Save size={15} />
-          {pending ? "Salvando…" : saved ? "Salvo na sua conta" : "Salvar guia"}
-        </button>}
+        <span className="editor-brand"><FileText size={20} aria-hidden="true" /> <b>{name}</b></span>
       </div>
-      {error && <p className="account-notice" role="alert">{error}</p>}
-      <div className="format-toolbar">
-        <button onClick={() => setValue(value + "\n# Título\n")}>Título</button>
-        <button onClick={() => setValue(value + " **texto em negrito** ")}>
-          <b>Negrito</b>
-        </button>
-        <button onClick={() => setValue(value + "\n- Item da lista\n")}>
-          • Lista
-        </button>
-        <span>{fileName ? "Arquivo de treino" : "Guia de aprendizagem · rascunho"}</span>
-      </div>
-      <textarea
-        aria-label={fileName ? `Conteúdo de ${fileName}` : "Conteúdo do Meu Guia Digital"}
-        maxLength={fileName ? desktopTextLimit : undefined}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={
-          fileName ? "Digite aqui." : "# Meu Guia Digital\n\nEscreva aqui o que você descobriu nesta trilha…\n\n## Aula 1 — Primeiras descobertas\n\nO computador pode me ajudar a…"
-        }
-      />
-      <div className="editor-footer">
-        <span>
-          <Save size={14} aria-hidden="true" /> Salvamento automático na sua conta
-        </span>
-        <span>{words} palavras</span>
-      </div>
-    </div>
-  );
-}
-
-function PracticeWidget({
-  tool,
-  changeView,
-  done,
-  complete,
-}: {
-  tool: string;
-  changeView: (v: string) => void;
-  done: boolean;
-  complete: () => Promise<string | undefined>;
-}) {
-  const [answer, setAnswer] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-
-  async function markDone() {
-    setPending(true);
-    setError("");
-    try {
-      setError(await complete() ?? "");
-    } catch {
-      setError("Não foi possível salvar a conclusão. Tente novamente.");
-    } finally {
-      setPending(false);
-    }
-  }
-  const recommended =
-    tool === "arquivos"
-      ? "Área de trabalho"
-      : tool === "texto" || tool === "guia"
-        ? "Editor de texto"
-        : tool === "planilha"
-          ? "Planilha"
-          : tool === "navegador"
-            ? "Navegador"
-            : tool === "digitacao"
-              ? "Digitação"
-              : "Área de trabalho";
-  return (
-    <div className="practice-widget">
-      <div className="practice-prompt">
-        <span className="practice-step">01</span>
-        <div>
-          <b>Experimente na ferramenta</b>
-          <p>
-            Use o espaço de prática indicado e volte para marcar sua atividade
-            como realizada.
-          </p>
-        </div>
-      </div>
-      <button className="secondary-btn" onClick={() => changeView(recommended)}>
-        Abrir {recommended} <ArrowUpRight size={14} />
-      </button>
-      <div className="reflection">
-        <label htmlFor="resposta-pratica">O que você percebeu ao experimentar?</label>
-        <textarea
-          id="resposta-pratica"
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Escreva uma observação…"
-        />
-      </div>
-      <button
-        className={`primary-btn ${done ? "completed-btn" : ""}`}
-        onClick={markDone}
-        disabled={done || pending}
-      >
-        {done ? (
-          <>
-            <Check size={16} /> Prática concluída
-          </>
-        ) : (
-          <>
-            {pending ? "Salvando…" : "Marcar exercício como concluído"} <ChevronRight size={16} />
-          </>
-        )}
-      </button>
-      {error && <p role="alert">{error}</p>}
-    </div>
-  );
-}
-
-function EditableSheet({
-  rows,
-  onChange,
-  cellLimit,
-}: {
-  rows: string[][];
-  onChange: (cells: string[][]) => void;
-  cellLimit?: number;
-}) {
-  const columns = Array.from({ length: Math.max(2, ...rows.map((row) => row.length)) }, (_, i) => String.fromCharCode(65 + i));
-  return (
-    <div className="spreadsheet" role="region" aria-label="Planilha editável" tabIndex={0}>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col"><span className="sr-only">Linha</span></th>
-            {columns.map((column) => <th scope="col" key={column}>{column}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              <th scope="row">{i + 1}</th>
-              {columns.map((column, j) => (
-                <td key={column}>
-                  <input
-                    aria-label={`Coluna ${column}, linha ${i + 1}`}
-                    maxLength={cellLimit}
-                    value={row[j] || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const editedRow = columns.map((_, index) => index === j ? value : row[index] ?? "");
-                      onChange(rows.map((current, index) => index === i ? editedRow : current));
-                    }}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <textarea aria-label={`Conteúdo de ${name}`} maxLength={desktopTextLimit} value={value}
+        onChange={(event) => onChange(event.target.value)} placeholder="Comece a digitar aqui" />
     </div>
   );
 }

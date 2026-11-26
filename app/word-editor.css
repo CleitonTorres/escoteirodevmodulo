@@ -1,0 +1,105 @@
+.word-editor {
+  --word-border: #aebfb5;
+  --word-tray: #e9efe9;
+  min-inline-size: 0;
+  border: 1px solid var(--word-border);
+  border-radius: 0.875rem;
+  background: #f7faf7;
+  color: var(--ink);
+  box-shadow: 0 0.75rem 1.75rem #122e2312;
+}
+.word-titlebar, .word-status, .word-quick, .word-document-title, .word-tool-group, .word-style {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.word-titlebar, .word-status { justify-content: space-between; flex-wrap: wrap; padding: 0.625rem 0.875rem; }
+.word-titlebar { border-radius: 0.875rem 0.875rem 0 0; background: #e2ede5; }
+.word-document-title { min-inline-size: 0; overflow-wrap: anywhere; font-size: 1.125rem; color: var(--forest); }
+.word-file-icon { display: grid; place-items: center; inline-size: 2.5rem; block-size: 2.5rem; flex: none; border-radius: 0.625rem; background: #235344; color: #fff; }
+.word-quick { gap: 0.25rem; flex-wrap: wrap; }
+.word-editor button, .word-editor select {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: var(--touch-size);
+  padding: 0.375rem 0.625rem;
+  border: 1px solid transparent;
+  border-radius: 0.4375rem;
+  background: transparent;
+  color: var(--forest);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.word-editor .word-tool { min-inline-size: var(--touch-size); }
+.word-editor button:enabled:hover { background: #dceae0; }
+.word-editor button:disabled, .word-editor select:disabled { opacity: 0.55; cursor: default; }
+.word-editor button[aria-pressed="true"], .word-editor .word-save, .word-editor select {
+  border-color: #789b87;
+  background: #fff;
+}
+.word-editor .word-tool[aria-pressed="true"], .word-insert button[aria-pressed="true"] { background: #d4e7da; }
+.word-tabs { display: flex; gap: 0.25rem; padding: 0.1875rem 0.875rem 0; border-block-end: 1px solid #dce5dc; }
+.word-tabs button[aria-pressed="true"] { border-block-end: 3px solid #32664f; border-radius: 0.4375rem 0.4375rem 0 0; }
+.word-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+  min-block-size: 3.875rem;
+  padding: 0.375rem 0.875rem;
+  border-block-end: 1px solid var(--word-border);
+  background: #fff;
+}
+.word-tool-group { gap: 0.125rem; flex-wrap: wrap; }
+.word-style { gap: 0.375rem; margin-inline: 0.125rem; font-size: 1rem; color: var(--forest); }
+.word-style select { display: block; padding-inline-end: 1.75rem; }
+.word-insert button { border-color: #d4e2d9; }
+.word-desk { padding: clamp(0.625rem, 3vw, 2rem); background: var(--word-tray); }
+.word-sheet {
+  inline-size: min(100%, 49rem);
+  margin-inline: auto;
+  border: 1px solid #b3c0b7;
+  background: #fff;
+  color: #26342e;
+  box-shadow: 0 0.375rem 1.125rem #142e2024;
+}
+.word-sheet .tiptap {
+  min-block-size: clamp(25rem, 55vh, 46rem);
+  padding: clamp(1rem, 4vw, 3.125rem);
+  font-family: system-ui, sans-serif;
+  font-size: clamp(1.05rem, 0.25vw + 1rem, 1.2rem);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.word-sheet .tiptap:focus-visible { outline-offset: -3px; }
+.word-sheet .tiptap > :first-child { margin-block-start: 0; }
+.word-sheet .tiptap :is(h1, h2, h3) { color: #26342e; line-height: 1.25; margin-block: 1rem 0.375rem; }
+.word-sheet .tiptap h1 { font-size: 1.9em; }
+.word-sheet .tiptap h2 { font-size: 1.5em; }
+.word-sheet .tiptap h3 { font-size: 1.25em; }
+.word-sheet .tiptap p { margin-block: 0 0.5em; }
+.word-sheet .tiptap :is(ul, ol) { padding-inline-start: 1.75rem; margin-block: 0.5rem; }
+.word-sheet .tiptap ul { list-style: disc outside; }
+.word-sheet .tiptap ol { list-style-position: outside; }
+.word-sheet .tiptap blockquote { margin-inline: 0; padding-inline-start: 0.875rem; border-inline-start: 0.25rem solid #81a28e; }
+.word-sheet .tiptap hr { border: 0; border-block-start: 1px solid var(--word-border); margin-block: 1.125rem; }
+.word-desk[data-empty="true"] .tiptap > p:first-child::before {
+  content: "Comece a digitar aqui";
+  float: inline-start;
+  block-size: 0;
+  color: #576b60;
+  pointer-events: none;
+}
+.word-status { border-block-start: 1px solid var(--word-border); font-size: 0.9375rem; color: var(--muted); }
+.word-status span:first-child { display: inline-flex; align-items: center; gap: 0.375rem; }
+.word-error { margin: 0; padding: 0.625rem 0.875rem; background: #fbeee9; color: #74261f; }
+
+@media (max-width: 38rem) {
+  .word-ribbon, .word-tabs, .word-titlebar, .word-status { padding-inline: 0.625rem; }
+  .word-ribbon { gap: 0.25rem 0.5rem; }
+  .word-tool-group { gap: 0; }
+}

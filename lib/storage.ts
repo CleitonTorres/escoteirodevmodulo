@@ -1,10 +1,14 @@
 import type { DesktopProgress } from "./desktop-files";
+import type { WordValue } from "./word-document";
 
 export type Progress = {
   completed: number[];
   guide: string;
+  guideDocument?: WordValue["document"];
+  guideEditedLessons?: number[];
   typingBest: number;
   desktop?: DesktopProgress;
+  practiceEvidence?: Record<string, string>;
 };
 
 export const emptyProgress: Progress = { completed: [], guide: "", typingBest: 0 };

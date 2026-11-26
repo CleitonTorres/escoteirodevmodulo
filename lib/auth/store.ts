@@ -1,6 +1,7 @@
 import "server-only";
 import type { Db, ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
+import type { Role } from "./roles";
 
 export type Aluno = {
   nome: string;
@@ -8,6 +9,7 @@ export type Aluno = {
   passwordHash: string;
   passwordVersion: number;
   createdAt: Date;
+  role?: Role;
   status?: "pendente" | "ativo";
   emailVerifiedAt?: Date;
   emailConfirmation?: { hash: string; expiresAt: Date };

@@ -27,6 +27,7 @@
 .lab-window button:disabled { opacity: 0.5; cursor: default; }
 .lab-surface {
   --focus-ring: var(--focus-ring-dark);
+  grid-area: 1 / 1;
   min-block-size: 0;
   overflow: auto;
   padding: clamp(0.5rem, 1.75vw, 1.25rem);
@@ -34,6 +35,15 @@
   background:
     radial-gradient(ellipse at 94% 94%, #a1b88e30 0%, transparent 55%),
     radial-gradient(ellipse at 90% 16%, #426c58 0%, #244c42 43%, #102f2a 89%);
+}
+.lab-screen > .practice-assistant {
+  position: sticky;
+  grid-area: 1 / 1;
+  align-self: end;
+  justify-self: end;
+  z-index: 2;
+  inset-inline-end: auto;
+  margin: 0.75rem;
 }
 .lab-surface[data-explorer="true"] { display: grid; padding: 0; grid-template-rows: minmax(0, 1fr); }
 .lab-surface[data-explorer="false"] { scrollbar-gutter: stable; }

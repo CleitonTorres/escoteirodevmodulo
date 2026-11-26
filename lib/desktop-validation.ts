@@ -3,6 +3,8 @@ import {
   desktopApps, desktopCellLimit, desktopItemLimit, desktopSheetColumns, desktopSheetRows, desktopSizeError, desktopSlotLimit,
   desktopTextLimit, desktopTrash, validDesktopName, type DesktopEntry,
 } from "./desktop-files";
+import { readWordDocument } from "./word-document";
+import { readSheetWorkbook } from "./sheet-workbook";
 
 export function readDesktopItems(value: unknown): DesktopEntry[] | null {
   if (!Array.isArray(value) || value.length > desktopItemLimit) return null;
@@ -13,7 +15,7 @@ export function readDesktopItems(value: unknown): DesktopEntry[] | null {
 
   for (const record of value) {
     if (!record || typeof record !== "object") return null;
-    const { id, name, parent, slot, modifiedAt, deleted, kind, app, text, cells } = record as Record<string, unknown>;
+    const { id, name, parent, slot, modifiedAt, deleted, kind, app, text, cells, document, workbook } = record as Record<string, unknown>;
     if (typeof id !== "string" || !/^[a-z\d-]{1,64}$/.test(id) || id === desktopTrash || byId.has(id)) return null;
     if (typeof name !== "string" || !validDesktopName(name) || (parent !== null && typeof parent !== "string")) return null;
     if (slot !== undefined && (parent !== null || typeof slot !== "number" || !Number.isInteger(slot) || slot < 0 || slot >= desktopSlotLimit)) return null;
@@ -32,7 +34,15 @@ export function readDesktopItems(value: unknown): DesktopEntry[] | null {
       if (text !== undefined && (typeof text !== "string" || text.length > desktopTextLimit)) return null;
       if (cells !== undefined && (!Array.isArray(cells) || cells.length > desktopSheetRows || cells.some((row) =>
         !Array.isArray(row) || row.length > desktopSheetColumns || row.some((cell) => typeof cell !== "string" || cell.length > desktopCellLimit)))) return null;
-      entry = { ...base, kind, ...(text === undefined ? {} : { text }), ...(cells === undefined ? {} : { cells }) };
+      if (workbook !== undefined) {
+        const content = readSheetWorkbook(workbook);
+        if (!content || document !== undefined || cells !== undefined || text !== undefined) return null;
+        entry = { ...base, kind, workbook: content };
+      } else if (document !== undefined) {
+        const content = readWordDocument(document);
+        if (!content || cells !== undefined) return null;
+        entry = { ...base, kind, ...content };
+      } else entry = { ...base, kind, ...(text === undefined ? {} : { text }), ...(cells === undefined ? {} : { cells }) };
     } else return null;
 
     if (!deleted) {

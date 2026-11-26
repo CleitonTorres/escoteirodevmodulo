@@ -1,0 +1,30 @@
+.training-sheet {
+  min-inline-size: 0;
+  border: 1px solid #aebfb5;
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 0.75rem 1.75rem #122e2312;
+}
+.training-sheet-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  min-block-size: 3.5rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.875rem 0.875rem 0 0;
+  background: #e2ede5;
+  color: var(--forest);
+}
+.training-sheet-heading strong { display: flex; align-items: center; gap: 0.625rem; min-inline-size: 0; overflow-wrap: anywhere; }
+.training-sheet-host {
+  position: relative;
+  isolation: isolate;
+  inline-size: 100%;
+  block-size: clamp(25rem, 68dvh, 58rem);
+}
+.training-sheet-mount { inline-size: 100%; block-size: 100%; }
+.training-sheet-error, .training-sheet-message { margin: 0; padding: 0.625rem 0.875rem; }
+.training-sheet-error { background: #fbeee9; color: #74261f; }
+.training-sheet-message { color: var(--muted); }

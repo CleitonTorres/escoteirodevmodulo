@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import type { PracticeEvent } from "@/lib/practice";
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, ChevronRight, Clipboard, Compass, Copy, Ellipsis,
   FileText, Folder, Globe, House, Keyboard, Maximize2, Minus, Monitor, PanelTop, Plus, Scissors, Search,
@@ -8,14 +9,14 @@ import {
 } from "lucide-react";
 import {
   copyEntry, desktopApps, desktopFileApp, desktopNameLimit, desktopSlotLimit, desktopTrash as trash, hasName,
-  isAvailable, moveEntry, nextDesktopSlot, placeDesktopEntry, restoreEntry, subtree, validDesktopName,
+  isAvailable, isDesktopDocument, moveEntry, nextDesktopSlot, placeDesktopEntry, restoreEntry, subtree, validDesktopName,
   type DesktopApp, type DesktopEntry, type DesktopFile, type EntryKind, type FolderId,
 } from "@/lib/desktop-files";
 import "./desktop-lab.css";
 
 const fileTypes = { "Editor de texto": "Arquivo de texto", Planilha: "Planilha", Navegador: "Página HTML" };
 const fileIcons = { "Editor de texto": FileText, Planilha: Table2, Navegador: Globe };
-const fileExtensions = ["txt", "csv", "html"] as const;
+const fileExtensions = ["txt", "docx", "xlsx", "csv", "html"] as const;
 const defaultNames = { folder: "Nova pasta", file: "Novo arquivo", shortcut: "Novo atalho" };
 const startApps = { Digitação: Keyboard, "Editor de texto": FileText, Planilha: Table2, Navegador: Globe };
 const nameOrder = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
@@ -34,13 +35,18 @@ function ItemIcon({ entry, size = 24 }: { entry: DesktopEntry; size?: number }) 
 }
 
 function entryType(entry: DesktopEntry) {
-  if (entry.kind === "file") return fileTypes[desktopFileApp(entry.name)];
+  if (entry.kind === "file") return fileLabel(entry.name);
   return entry.kind === "folder" ? "Pasta" : "Atalho";
+}
+
+function fileLabel(name: string) {
+  return isDesktopDocument(name) ? "Documento de texto" : fileTypes[desktopFileApp(name)];
 }
 
 function entrySize(entry: DesktopEntry) {
   if (entry.kind !== "file") return 0;
-  return new TextEncoder().encode(entry.text ?? (entry.cells ? JSON.stringify(entry.cells) : "")).length;
+  const structured = entry.document ?? entry.workbook ?? entry.cells;
+  return new TextEncoder().encode(structured ? JSON.stringify(structured) : entry.text ?? "").length;
 }
 
 function dropAt(x: number, y: number, source: string) {
@@ -52,13 +58,16 @@ function dropAt(x: number, y: number, source: string) {
   if (slot !== undefined) return { type: "slot", slot: Number(slot) } as const;
 }
 
-export default function DesktopLab({ items, setItems, explorer, setExplorer, openApp, openFile }: {
+export default function DesktopLab({ items, setItems, explorer, setExplorer, openApp, openFile, observe, verifyingFile, assistant }: {
   items: DesktopEntry[];
   setItems: (items: DesktopEntry[]) => string | undefined;
   explorer: ExplorerWindow;
   setExplorer: (window: ExplorerWindow) => void;
   openApp: (app: DesktopApp) => void;
   openFile: (file: DesktopFile) => void;
+  observe: (event: PracticeEvent) => void;
+  verifyingFile: boolean;
+  assistant?: ReactNode;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{ id: string; cut: boolean } | null>(null);
@@ -178,6 +187,8 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
   }
 
   function goTo(id: FolderId) {
+    const folder = items.find((entry) => entry.id === id && entry.kind === "folder" && !entry.deleted);
+    if (folder) observe({ kind: "desktop-event", action: "open", name: folder.name, itemId: folder.id });
     if (activeFolder === id) showLocation({ ...explorer, open: true });
     else {
       const history = [...explorer.history.slice(0, explorer.index + 1), id];
@@ -223,6 +234,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
 
   function recycle(entry: DesktopEntry) {
     if (commitItems(items.map((item) => item.id === entry.id ? { ...item, deleted: true, modifiedAt: Date.now() } : item))) return;
+    if (entry.kind === "file") observe({ kind: "desktop-event", action: "trash", name: entry.name, itemId: entry.id });
     if (clipboard?.id === entry.id) setClipboard(null);
     setSelected(null);
     setNotice(`${entry.name} foi para a Lixeira.`);
@@ -231,6 +243,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
   function restore(entry: DesktopEntry) {
     const result = restoreEntry(items, entry);
     if (commitItems(result.items)) return;
+    if (entry.kind === "file") observe({ kind: "desktop-event", action: "restore", name: result.name, itemId: entry.id });
     setSelected(null);
     setNotice(`${result.name} foi restaurado${result.parent !== entry.parent ? " na Área de trabalho" : ""}.`);
   }
@@ -387,6 +400,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
       if (edited) {
         const error = commitItems(items.map((entry) => entry.id === edited.id ? { ...entry, name, modifiedAt: Date.now() } : entry));
         if (error) return error;
+        if (edited.kind === "file") observe({ kind: "desktop-event", action: "rename", name, itemId: edited.id, previousName: edited.name });
         setNotice(`${edited.name} agora se chama ${name}.`);
       } else if (dialog.type === "create") {
         const base = { id: crypto.randomUUID(), name, parent: place, modifiedAt: Date.now(), slot: place === null ? nextDesktopSlot(items) : undefined };
@@ -424,7 +438,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
   ];
 
   return (
-    <section className="desktop-lab" aria-label="Simulador de área de trabalho" onKeyDown={keyboardActions}>
+    <section className="desktop-lab" aria-label="Simulador de área de trabalho" onKeyDown={keyboardActions} inert={verifyingFile}>
       <div className="lab-screen">
       <div className="lab-surface" data-explorer={explorer.open} ref={surface} role="group" tabIndex={0} aria-label={locationName} aria-describedby={hintId}
         onContextMenu={(event) => {
@@ -549,6 +563,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
           </div>
         )}
       </div>
+      {assistant}
       <nav className="lab-taskbar" aria-label="Barra de tarefas do simulador">
         <div className="lab-start" ref={startArea}>
           <button type="button" className="lab-start-toggle" ref={startButton} aria-expanded={startOpen} aria-controls={startId}
@@ -653,7 +668,7 @@ function DesktopDialog({ dialog, items, onClose, onSubmit }: {
               <label>Tipo de arquivo
                 <select name="extension" aria-describedby="lab-file-extension-help">
                   {fileExtensions.map((extension) => (
-                    <option key={extension} value={extension}>{fileTypes[desktopFileApp(`arquivo.${extension}`)]} (.{extension})</option>
+                    <option key={extension} value={extension}>{fileLabel(`arquivo.${extension}`)} (.{extension})</option>
                   ))}
                 </select>
               </label>

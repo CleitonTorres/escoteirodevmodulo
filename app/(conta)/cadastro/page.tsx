@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { currentAluno } from "@/lib/auth/session";
+import { currentAccount } from "@/lib/auth/session";
 import { ContaForm } from "../conta-form";
 
 export default async function CadastroPage() {
-  if (await currentAluno()) redirect("/");
+  if (await currentAccount()) redirect("/");
   return <ContaForm mode="cadastro" />;
 }

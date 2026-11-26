@@ -1,9 +1,9 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import type { ObjectId, WithId } from "mongodb";
 import { authStore, type Aluno } from "./store";
 import { digest, isToken, randomToken } from "./tokens";
+import { accountRole } from "./roles";
 
 const secure = process.env.NODE_ENV === "production";
 const sessionCookie = secure ? "__Host-trilha-session" : "trilha-session";
@@ -21,7 +21,7 @@ export async function createSession(alunoId: ObjectId, passwordVersion: number) 
   cookieStore.set(sessionCookie, token, { httpOnly: true, secure, sameSite: "lax", path: "/", expires: expiresAt });
 }
 
-export async function currentAluno() {
+export async function currentAccount() {
   const token = (await cookies()).get(sessionCookie)?.value;
   if (!isToken(token)) return null;
 
@@ -29,16 +29,11 @@ export async function currentAluno() {
   const session = await sessions.findOne({ _id: digest(token), expiresAt: { $gt: new Date() } });
   if (!session) return null;
 
-  return alunos.findOne<Pick<WithId<Aluno>, "_id" | "nome">>(
+  const account = await alunos.findOne<Pick<WithId<Aluno>, "_id" | "nome" | "role">>(
     { _id: session.alunoId, passwordVersion: session.passwordVersion, status: { $ne: "pendente" } },
-    { projection: { nome: 1 } },
+    { projection: { nome: 1, role: 1 } },
   );
-}
-
-export async function requireAluno() {
-  const aluno = await currentAluno();
-  if (!aluno) redirect("/entrar");
-  return aluno;
+  return account && { ...account, role: accountRole(account.role) };
 }
 
 export async function endSession() {

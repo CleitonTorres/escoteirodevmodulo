@@ -31,6 +31,235 @@
   font-size: var(--text-small);
   letter-spacing: 0.025em;
 }
+.discipline-picker {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0 0.3125rem 1rem;
+  color: #eff4ef;
+}
+.discipline-picker label {
+  font-weight: 700;
+}
+.discipline-picker select {
+  width: 100%;
+  min-width: 0;
+  min-block-size: var(--touch-size);
+  padding: 0.5rem;
+  border: 1px solid #9ab4a4;
+  border-radius: 0.5rem;
+  background: var(--white);
+  color: var(--forest);
+  font: inherit;
+}
+.discipline-picker small {
+  font-size: var(--text-small);
+}
+.discipline-picker [role="alert"] {
+  color: #ffd9b4;
+}
+.lesson-card:disabled,
+.all-lesson:disabled {
+  cursor: default;
+  transform: none;
+}
+.lesson-card:disabled .circle-arrow {
+  visibility: hidden;
+}
+.practice-tools,
+.practice-notice {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  margin-block-end: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--white);
+}
+.practice-tools details {
+  width: 100%;
+}
+.practice-tools summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+  font-weight: 700;
+}
+.practice-assistant {
+  position: fixed;
+  z-index: 12;
+  inset-inline-end: 0.75rem;
+  inset-block-end: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(23rem, calc(100% - 1.5rem));
+  max-block-size: min(22rem, 48dvh);
+  border: 1px solid #97703a;
+  border-radius: 1rem;
+  background: #fffdf6;
+  color: var(--ink);
+  box-shadow: 0 0.5rem 1.5rem #112e2b3b;
+}
+.practice-assistant[data-minimized="true"] {
+  inline-size: max-content;
+  max-inline-size: calc(100% - 1.5rem);
+}
+.practice-assistant[data-minimized="false"]::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 1.5rem;
+  inset-block-end: -0.375rem;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-inline-end: 1px solid #97703a;
+  border-block-end: 1px solid #97703a;
+  background: #fffdf6;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.practice-assistant-toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-block-size: var(--touch-size);
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 0.9375rem;
+  background: transparent;
+  color: var(--forest);
+  text-align: start;
+  font: inherit;
+  font-weight: 750;
+}
+.practice-assistant-toggle > svg {
+  margin-inline-start: auto;
+}
+.practice-assistant-toggle:hover {
+  background: #f5ebd2;
+}
+.practice-assistant-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2.125rem;
+  block-size: 2.125rem;
+  border-radius: 50%;
+  background: #f3cb78;
+}
+.practice-assistant-body {
+  min-block-size: 0;
+  overflow: auto;
+  padding: 0.75rem 1rem;
+  border-block-start: 1px solid #e0cfaa;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.practice-assistant-body p {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+}
+.practice-assistant-body p b {
+  display: block;
+  color: var(--forest);
+}
+.practice-assistant-body button {
+  margin-block-start: 0.75rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .practice-assistant[data-minimized="false"] .practice-assistant-icon {
+    animation: practice-assistant-arrive 420ms ease-out;
+  }
+  @keyframes practice-assistant-arrive {
+    35% { transform: translateY(-0.25rem) rotate(-14deg); }
+    70% { transform: rotate(8deg); }
+  }
+}
+.practice-notice p {
+  margin: 0;
+}
+.practice-checklist {
+  display: grid;
+  gap: 0.75rem;
+  margin-block: 1rem;
+  padding-inline-start: 1.5rem;
+}
+.practice-checklist > li {
+  padding: 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--paper);
+}
+.practice-task-heading,
+.practice-answers,
+.practice-finish {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem 1rem;
+}
+.practice-task-heading {
+  align-items: baseline;
+  justify-content: space-between;
+}
+.practice-task-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #684514;
+  font-weight: 700;
+}
+.practice-task-status[data-done="true"] {
+  color: var(--forest);
+}
+.practice-checklist p {
+  margin: 0.375rem 0 0;
+}
+.practice-answers,
+.practice-shortcuts {
+  margin-block-start: 0.75rem;
+}
+.practice-shortcuts,
+.practice-shortcuts label {
+  display: grid;
+  gap: 0.5rem;
+}
+.practice-shortcuts input,
+.practice-shortcuts textarea {
+  width: 100%;
+  min-block-size: var(--touch-size);
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #7a9386;
+  border-radius: 0.5rem;
+  color: var(--ink);
+  background: var(--white);
+}
+.practice-shortcuts textarea {
+  min-block-size: 5rem;
+  resize: vertical;
+}
+.practice-finish p {
+  margin: 0;
+}
+.lesson-guide {
+  display: grid;
+  gap: 1rem;
+}
+.lesson-guide-instructions,
+.lesson-guide > .practice-finish {
+  padding: 1rem clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--white);
+}
+.lesson-guide-instructions h2 {
+  margin: 0 0 0.375rem;
+  font-size: 1.25rem;
+  color: var(--forest);
+}
+.lesson-guide-instructions p {
+  margin: 0;
+  max-inline-size: 68ch;
+}
 .nav-item {
   font-size: 1rem;
   min-block-size: var(--touch-size);
@@ -162,14 +391,30 @@
   min-block-size: 12rem;
   border-radius: 0.875rem;
 }
-.trail-sign {
-  right: 16%;
-  top: 35px;
+.banner-landscape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
-.trail-sign span {
-  font-size: var(--text-small);
-  letter-spacing: 0.02em;
-  line-height: 1.25;
+.banner-hill-back {
+  fill: #86a68f;
+}
+.banner-hill-front {
+  fill: #567b65;
+}
+.banner-trail {
+  fill: none;
+  stroke: #fff3c9;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1 8;
+  vector-effect: non-scaling-stroke;
+}
+.banner-destination {
+  fill: #e3b657;
+  color: #173f34;
+  filter: drop-shadow(0 2px 3px #173f3440);
 }
 
 .banner-foot {
@@ -186,7 +431,6 @@
 .card-month,
 .month-heading small,
 .all-lesson small,
-.video-card small,
 .search-results > small {
   color: var(--muted);
   font-size: var(--text-small);
@@ -212,7 +456,6 @@
 .link-button,
 .text-link,
 .back-link,
-.video-card a,
 .lesson-tabs button,
 .level-steps button,
 .editor-toolbar button,
@@ -227,8 +470,7 @@
 }
 .link-button,
 .text-link,
-.back-link,
-.video-card a {
+.back-link {
   color: #29513a;
   font-weight: 700;
   text-decoration: underline;
@@ -404,6 +646,22 @@
 .objective,
 .theory-block p,
 .guide-aside p,
+.lesson-resources,
+.lesson-exercise {
+  margin-block: 1rem;
+}
+.lesson-resources :is(h3, ul),
+.lesson-exercise :is(h3, ol) {
+  margin-block: 0.5rem;
+}
+.lesson-resources li + li,
+.lesson-exercise li + li {
+  margin-block-start: 0.5rem;
+}
+.lesson-resources a {
+  color: var(--forest);
+  text-decoration: underline;
+}
 .aside-card h3,
 .practice-card > p {
   color: var(--ink);
@@ -419,13 +677,31 @@
 .theory-index {
   font-size: var(--text-small);
 }
-.video-card {
-  flex-wrap: wrap;
+.lesson-videos {
+  display: grid;
+  gap: 0.875rem;
+  margin-block: 1.25rem;
 }
-.video-card a {
-  margin-inline-start: 0;
+.lesson-videos h3 {
+  margin: 0;
+  font-size: 1.15rem;
 }
-.video-card b,
+.lesson-video {
+  min-inline-size: 0;
+}
+.lesson-video iframe {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0.75rem;
+  background: #13201b;
+}
+.lesson-video a {
+  inline-size: fit-content;
+  margin-block-start: 0.25rem;
+  padding-inline-start: 0;
+}
 .practice-prompt b {
   font-size: 1rem;
 }
@@ -501,6 +777,7 @@
   overflow-wrap: anywhere;
 }
 .content.desktop-content { max-inline-size: none; inline-size: auto; padding: 0.75rem clamp(0.5rem, 1.35vw, 1.5rem) 1.5rem; }
+.content.training-sheet-content { max-inline-size: none; padding-inline: clamp(0.5rem, 1.35vw, 1.5rem); }
 .desktop-heading, .desktop-file-return { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-block-end: 0.75rem; }
 .desktop-heading h1 { margin: 0; color: var(--forest); font-size: clamp(1.4rem, 2.3vw, 2rem); line-height: 1.25; }
 .desktop-save { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.625rem; color: var(--forest); font-size: 0.9375rem; font-weight: 650; }

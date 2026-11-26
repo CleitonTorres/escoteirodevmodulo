@@ -63,7 +63,7 @@ export async function cadastrar(_: FormState, formData: FormData): Promise<FormS
     const passwordHash = await hashPassword(password);
     await alunos.insertOne({
       nome, email, passwordHash, passwordVersion: 1, createdAt: new Date(),
-      status: "pendente", emailConfirmation: record,
+      role: "aluno", status: "pendente", emailConfirmation: record,
     });
   } catch (error) {
     if (isDuplicateKey(error)) return { ...fields, error: "Já existe um cadastro com esse e-mail. Acesse o login para entrar ou reenviar a confirmação." };
