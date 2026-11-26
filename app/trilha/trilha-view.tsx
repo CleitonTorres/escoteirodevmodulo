@@ -3,7 +3,7 @@ import { listarDisciplinas } from "@/lib/catalogo";
 import { progressoAluno } from "@/lib/progresso";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { sair } from "./conta-actions";
+import { sair } from "@/app/conta-actions";
 import Trilha from "./trilha";
 import "./trilha.css";
 

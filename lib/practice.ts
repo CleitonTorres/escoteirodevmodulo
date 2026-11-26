@@ -1,6 +1,7 @@
 import type { Lesson } from "@/data/lessons";
 import type { JSONContent } from "@tiptap/core";
-import { initialDesktopItems, isAvailable, type DesktopFile } from "./desktop-files";
+import { desktopEntryAt, initialDesktopItems, isAvailable, type DesktopFile } from "./desktop-files";
+import { codeMatches, type CodeRule } from "./code-practice";
 import type { Progress } from "./storage";
 
 type WordBlock = {
@@ -15,6 +16,8 @@ type WordBlock = {
 export type PracticeCheck =
   | { kind: "entry"; path: string[]; entry: "folder" | "file" | "shortcut"; itemId?: string; app?: string }
   | { kind: "typing"; level: number }
+  | ({ kind: "code"; file: string[]; quickStart?: boolean } &
+    ({ rule: CodeRule; markers?: never } | { rule?: never; markers: string[] }))
   | { kind: "word"; file: string[]; block: WordBlock; distinctHeadings?: number }
   | { kind: "sheet"; file: string[]; headers: [string, string, string, string]; itemCount: number; step: "headers" | "items" | "subtotals" | "total" }
   | { kind: "quiz"; options: readonly string[]; answer: number; feedback: string }
@@ -49,15 +52,7 @@ function normalize(value: string) {
 }
 
 function entryAt(progress: Progress, path: string[]) {
-  const items = progress.desktop?.items ?? initialDesktopItems;
-  let parent: string | null = null;
-  for (const [index, name] of path.entries()) {
-    const entry = items.find((item) => item.parent === parent && !item.deleted && normalize(item.name) === normalize(name));
-    if (!entry) return;
-    if (index === path.length - 1) return entry;
-    if (entry.kind !== "folder") return;
-    parent = entry.id;
-  }
+  return desktopEntryAt(progress.desktop?.items ?? initialDesktopItems, path);
 }
 
 function textContent(node: JSONContent): string {
@@ -112,8 +107,8 @@ function sheetCheck(file: DesktopFile, { headers, itemCount, step }: Extract<Pra
 }
 
 export function taskDone(lessonId: number, task: PracticeTask, progress: Progress): boolean {
-  if (progress.completed.includes(lessonId)) return true;
   const { check } = task;
+  if (check.kind !== "quiz" && check.kind !== "code" && progress.completed.includes(lessonId)) return true;
   switch (check.kind) {
     case "entry": {
       const entry = entryAt(progress, check.path);
@@ -122,6 +117,10 @@ export function taskDone(lessonId: number, task: PracticeTask, progress: Progres
         (!check.app || (entry.kind === "shortcut" && entry.app === check.app));
     }
     case "typing": return progress.typingBest >= check.level;
+    case "code": {
+      const file = entryAt(progress, check.file);
+      return file?.kind === "file" && codeMatches(file, check.markers, check.rule);
+    }
     case "word": {
       const file = entryAt(progress, check.file);
       const doc = file?.kind === "file" ? file.document : undefined;

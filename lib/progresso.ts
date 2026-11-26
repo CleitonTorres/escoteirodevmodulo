@@ -22,12 +22,22 @@ export async function progressoAluno(alunoId: ObjectId, disciplinaId: string, vi
         guide: result?.guide ?? emptyProgress.guide,
         guideDocument: result?.guideDocument,
         guideEditedLessons: result?.guideEditedLessons,
+        journal: result?.journal,
         desktop: result?.desktop,
         practiceEvidence: result?.practiceEvidence,
       };
     },
     async complete(lessonId: number) {
       await collection.updateOne(key, { $setOnInsert: identity, $addToSet: { completed: lessonId } }, { upsert: true });
+    },
+    async saveJournalNote(lessonId: number, note: string) {
+      const update = { $setOnInsert: identity, $set: { [`journal.${lessonId}`]: note } };
+      try {
+        await collection.updateOne(key, update, { upsert: true });
+      } catch (error) {
+        if (!isDuplicateKey(error)) throw error;
+        await collection.updateOne(key, update);
+      }
     },
     async recordPractice(evidence: Record<string, string>) {
       const fields = Object.fromEntries(Object.entries(evidence).map(([id, value]) => [`practiceEvidence.${id}`, value]));

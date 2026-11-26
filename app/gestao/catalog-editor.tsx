@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Lesson } from "@/data/lessons";
-import type { Disciplina } from "@/data/disciplinas";
-import { isProgramacaoBasica } from "@/data/programacao-basica";
+import { isProgramacaoBasica, type Disciplina } from "@/data/disciplinas";
 import { canManage, type Role } from "@/lib/auth/roles";
 import {
   excluirAula,
@@ -288,6 +287,10 @@ function LessonEditor({
             required
           />
         </label>
+        {(isProgramacaoBasica(discipline) || lesson?.codeExample) && <label>
+          Exemplo de código da teoria
+          <textarea name="codeExample" rows={5} maxLength={6000} defaultValue={lesson?.codeExample} />
+        </label>}
         <label>
           Orientação de Meu guia
           <textarea
@@ -301,12 +304,12 @@ function LessonEditor({
 
         <LessonVideoEditor key={JSON.stringify(videos)} urls={videos} />
         <details>
-          <summary>Exercício e recursos</summary>
+          <summary>{lesson?.exercise?.length ? "Orientações extras e recursos" : "Recursos da aula"}</summary>
           <div className="management-stack">
-            <label>
-              Passos do exercício, um por linha
+            {Boolean(lesson?.exercise?.length) && <label>
+              Orientações extras, uma por linha
               <textarea name="exercise" rows={4} maxLength={12012} defaultValue={lesson?.exercise?.join("\n")} />
-            </label>
+            </label>}
             <label>
               Recursos, um por linha no formato Nome | endereço HTTPS
               <textarea name="resources" rows={3} maxLength={13000}
@@ -314,10 +317,7 @@ function LessonEditor({
             </label>
           </div>
         </details>
-        <details>
-          <summary>Tarefas práticas</summary>
-          <PracticeTaskEditor key={JSON.stringify(tasks)} tasks={tasks} />
-        </details>
+        <PracticeTaskEditor key={JSON.stringify(tasks)} tasks={tasks} />
       </ManageForm>
 
       {lesson && canDelete && (

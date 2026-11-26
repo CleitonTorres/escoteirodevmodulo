@@ -4,7 +4,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, ty
 import type { PracticeEvent } from "@/lib/practice";
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, ChevronRight, Clipboard, Compass, Copy, Ellipsis,
-  FileText, Folder, Globe, House, Keyboard, Maximize2, Minus, Monitor, PanelTop, Plus, Scissors, Search,
+  Code2, FileText, Folder, Globe, House, Keyboard, Maximize2, Minus, Monitor, PanelTop, Plus, Scissors, Search,
   SquarePen, Table2, Trash2, X,
 } from "lucide-react";
 import {
@@ -14,11 +14,11 @@ import {
 } from "@/lib/desktop-files";
 import "./desktop-lab.css";
 
-const fileTypes = { "Editor de texto": "Arquivo de texto", Planilha: "Planilha", Navegador: "Página HTML" };
-const fileIcons = { "Editor de texto": FileText, Planilha: Table2, Navegador: Globe };
-const fileExtensions = ["txt", "docx", "xlsx", "csv", "html"] as const;
+const fileTypes = { "Editor de texto": "Arquivo de texto", "Editor de código": "Arquivo de código", Planilha: "Planilha", Navegador: "Página HTML" };
+const fileIcons = { "Editor de texto": FileText, "Editor de código": Code2, Planilha: Table2, Navegador: Globe };
+const fileExtensions = ["txt", "docx", "xlsx", "csv", "html", "js", "css", "json", "md"] as const;
 const defaultNames = { folder: "Nova pasta", file: "Novo arquivo", shortcut: "Novo atalho" };
-const startApps = { Digitação: Keyboard, "Editor de texto": FileText, Planilha: Table2, Navegador: Globe };
+const startApps = { Digitação: Keyboard, "Editor de texto": FileText, "Editor de código": Code2, Planilha: Table2, Navegador: Globe };
 const nameOrder = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base" });
 const dateDisplay = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const sortColumns = [["name", "Nome"], ["modifiedAt", "Modificado em"], ["type", "Tipo"], ["size", "Tamanho"]] as const;
@@ -580,6 +580,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
         <button type="button" title="Explorador de arquivos" aria-label="Explorador de arquivos" aria-pressed={explorer.open}
           onClick={() => showLocation({ ...explorer, open: !explorer.open })}><Folder size={23} aria-hidden="true" /> <span>Explorador</span></button>
         <button type="button" title="Navegador" aria-label="Navegador" onClick={() => openApp("Navegador")}><Globe size={22} aria-hidden="true" /></button>
+        <button type="button" title="Editor de código" aria-label="Editor de código" onClick={() => openApp("Editor de código")}><Code2 size={22} aria-hidden="true" /></button>
         <button type="button" title="Lixeira" aria-label="Abrir Lixeira" data-lab-trash data-drop={drag?.drop?.type === "trash"}
           aria-pressed={place === trash} onClick={() => goTo(trash)}><Trash2 size={22} aria-hidden="true" /></button>
         <div className="lab-taskbar-end">

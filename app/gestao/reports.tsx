@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { authStore, type Aluno } from "@/lib/auth/store";
 import { accountRole, canManage, type Role } from "@/lib/auth/roles";
 import { getDb } from "@/lib/mongodb";
-import type { Disciplina } from "@/data/disciplinas";
+import { isProgramacaoBasica, type Disciplina } from "@/data/disciplinas";
 import type { Progress } from "@/lib/storage";
 import { promoverConta } from "./actions";
 import ManageForm from "./manage-form";
@@ -41,8 +41,9 @@ export default async function Reports({ role, discipline, disciplines, studentId
     const selectedRole = accountRole(selected.role);
     const progress = !accounts && discipline && await (await getDb())
       .collection<Partial<Progress> & { _id: string }>("progresso_alunos").findOne(
-        { _id: `${selected._id}:${discipline.id}` }, { projection: { completed: 1, typingBest: 1, guide: 1 } },
+        { _id: `${selected._id}:${discipline.id}` }, { projection: { completed: 1, typingBest: 1, guide: 1, journal: 1 } },
       );
+    const journal = progress ? progress.journal : undefined;
     return <section className="management-card">
       <Link href={link()}>Voltar para {accounts ? "contas" : "relatórios"}</Link>
       <h2>{selected.nome}</h2>
@@ -67,9 +68,16 @@ export default async function Reports({ role, discipline, disciplines, studentId
         <ul className="management-progress">{discipline.aulas.map((lesson) => <li key={lesson.id}>
           <span>{lesson.title}</span><strong>{progress && progress.completed?.includes(lesson.id) ? "Concluída" : "Pendente"}</strong>
         </li>)}</ul>
-        <details><summary>Guia do aluno</summary>
+        {isProgramacaoBasica(discipline) && <details><summary>Diário do aluno</summary>
+          {discipline.aulas.some(({ id }) => journal?.[id]?.trim())
+            ? discipline.aulas.map(({ id, title }) => {
+              const note = journal?.[id];
+              return note?.trim() ? <section key={id}><h4>{title}</h4><p className="management-guide">{note}</p></section> : null;
+            }) : <p>O aluno ainda não escreveu no diário.</p>}
+        </details>}
+        {(!isProgramacaoBasica(discipline) || Boolean(progress && progress.guide)) && <details><summary>Guia do aluno</summary>
           <p className="management-guide">{progress && progress.guide || "O aluno ainda não escreveu no guia."}</p>
-        </details>
+        </details>}
       </>}
     </section>;
   }

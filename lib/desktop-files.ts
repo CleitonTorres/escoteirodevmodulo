@@ -1,7 +1,7 @@
 import type { WordValue } from "./word-document";
 import type { SheetWorkbook } from "./sheet-workbook";
 
-export const desktopApps = ["Digitação", "Editor de texto", "Planilha", "Navegador"] as const;
+export const desktopApps = ["Digitação", "Editor de texto", "Editor de código", "Planilha", "Navegador"] as const;
 export type DesktopApp = typeof desktopApps[number];
 export type FolderId = string | null;
 export const desktopTrash = "lixeira";
@@ -12,6 +12,7 @@ export const desktopSheetRows = 200;
 export const desktopSheetColumns = 26;
 export const desktopCellLimit = 500;
 export const desktopItemLimit = 200;
+export const programmingPortfolio = "meu_portifólio";
 const desktopByteLimit = 500_000;
 
 type Entry = { id: string; name: string; parent: FolderId; slot?: number; deleted?: boolean; modifiedAt?: number };
@@ -36,7 +37,34 @@ export function desktopSizeError(items: DesktopEntry[]) {
 export function desktopFileApp(name: string) {
   if (/\.(csv|tsv|xlsx?|ods)$/i.test(name)) return "Planilha";
   if (/\.html?$/i.test(name)) return "Navegador";
+  if (/\.(js|css|json|md)$/i.test(name)) return "Editor de código";
   return "Editor de texto";
+}
+
+export function isCodeFile(name: string) {
+  return /\.(html?|js|css|json|md|txt)$/i.test(name);
+}
+
+export function desktopPath(item: DesktopEntry, items: DesktopEntry[]) {
+  const path = [item.name];
+  for (let parent = item.parent; parent !== null;) {
+    const folder = items.find(({ id }) => id === parent);
+    if (!folder) break;
+    path.unshift(folder.name);
+    parent = folder.parent;
+  }
+  return path;
+}
+
+export function desktopEntryAt(items: DesktopEntry[], path: readonly string[]) {
+  let parent: FolderId = null;
+  const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase();
+  for (const [index, name] of path.entries()) {
+    const entry = items.find((item) => item.parent === parent && !item.deleted && normalize(item.name) === normalize(name));
+    if (!entry || index === path.length - 1) return entry;
+    if (entry.kind !== "folder") return;
+    parent = entry.id;
+  }
 }
 
 export function isDesktopDocument(name: string) {

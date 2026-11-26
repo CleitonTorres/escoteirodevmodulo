@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { desktopSizeError, initialDesktopItems, type DesktopEntry, type DesktopProgress } from "@/lib/desktop-files";
-import { salvarDesktop } from "./progresso-actions";
+import { salvarDesktop } from "@/app/progresso-actions";
 
 type SaveState = { status: "ready" | "pending" | "saved" } | { status: "error"; message: string };
 

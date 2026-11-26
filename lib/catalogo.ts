@@ -1,7 +1,8 @@
 import "server-only";
-import { buscarDisciplina, disciplinas, type Disciplina } from "@/data/disciplinas";
-import type { Lesson } from "@/data/lessons";
-import { isProgramacaoBasica, programacaoBasicaAulas, programacaoBasicaMeses } from "@/data/programacao-basica";
+import { buscarDisciplina, disciplinas, informaticaBasica, isProgramacaoBasica, type Disciplina } from "@/data/disciplinas";
+import { informaticaBasicaVersion, type Lesson } from "@/data/lessons";
+import { programacaoBasicaAulas, programacaoBasicaMeses, programacaoBasicaVersion } from "@/data/programacao-basica";
+import { revisarAulaInformatica, revisarAulaProgramacao } from "./catalogo-revisoes";
 import { getDb, isDuplicateKey } from "@/lib/mongodb";
 import { normalizeVideoUrls } from "@/lib/lesson-video";
 
@@ -22,9 +23,21 @@ async function collection() {
 
 function normalizeDiscipline(discipline: StoredDisciplina | undefined): Disciplina | undefined {
   if (!discipline) return;
-  return { ...discipline, aulas: discipline.aulas.map(({ videoUrl, ...lesson }) => (
+  const aulas = discipline.aulas.map(({ videoUrl, ...lesson }) => (
     videoUrl === undefined ? lesson : { ...lesson, videoUrl: normalizeVideoUrls(videoUrl) }
-  )) };
+  ));
+  if (discipline.id === informaticaBasica.id && (discipline.versaoApostilaInformatica ?? 0) < informaticaBasicaVersion) {
+    return { ...discipline, versaoApostilaInformatica: informaticaBasicaVersion, aulas: aulas.map((lesson) => {
+      const original = informaticaBasica.aulas.find(({ id }) => id === lesson.id);
+      return original && (lessonTitleKey(original.title) === lessonTitleKey(lesson.title) || original.objective === lesson.objective)
+        ? revisarAulaInformatica(lesson, original) : lesson;
+    }) };
+  }
+  if (discipline.apostilaProgramacaoImportada && (discipline.versaoApostilaProgramacao ?? 1) < programacaoBasicaVersion) {
+    const version = discipline.versaoApostilaProgramacao ?? 1;
+    return { ...discipline, aulas: aulas.map((lesson) => revisarAulaProgramacao(lesson, version)), versaoApostilaProgramacao: programacaoBasicaVersion };
+  }
+  return { ...discipline, aulas };
 }
 
 export async function listarDisciplinas() {
@@ -80,6 +93,7 @@ export async function alterarCatalogo(id: string, change: CatalogChange) {
           aulas: [...disciplina.aulas, ...additions.map((lesson) => ({ ...lesson, id: nextLessonId++ }))],
           meses: { ...programacaoBasicaMeses, ...disciplina.meses },
           apostilaProgramacaoImportada: true,
+          versaoApostilaProgramacao: programacaoBasicaVersion,
         };
         break;
       }

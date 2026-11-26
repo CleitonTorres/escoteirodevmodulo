@@ -259,6 +259,18 @@
   min-inline-size: 0;
   gap: 0.25rem;
 }
+.management-form .quiz-alternatives {
+  padding: 0.75rem;
+  border: 1px solid #b7c6bc;
+  border-radius: 0.75rem;
+}
+.quiz-option {
+  display: grid;
+  gap: 0.5rem;
+  padding-block-end: 0.75rem;
+  border-block-end: 1px solid var(--line);
+}
+.quiz-alternatives button { justify-self: start; }
 .practice-editor-task > button,
 .management-form fieldset > button[type="submit"] {
   margin-block-start: 0.5rem;

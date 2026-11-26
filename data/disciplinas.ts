@@ -1,18 +1,26 @@
-import { lessons, monthNames, type Lesson } from "./lessons";
+import { informaticaBasicaVersion, lessons, monthNames, type Lesson } from "./lessons";
 
 export type Disciplina = {
   id: string;
   nome: string;
   aulas: readonly Lesson[];
   meses?: Readonly<Partial<Record<number, string>>>;
+  versaoApostilaInformatica?: number;
   apostilaProgramacaoImportada?: true;
+  versaoApostilaProgramacao?: number;
 };
+
+export function isProgramacaoBasica({ id, nome }: Pick<Disciplina, "id" | "nome">) {
+  return id === "programacao-basica" ||
+    nome.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase() === "programacao basica";
+}
 
 export const informaticaBasica: Disciplina = {
   id: "informatica-basica",
   nome: "Informática básica",
   aulas: lessons,
   meses: monthNames,
+  versaoApostilaInformatica: informaticaBasicaVersion,
 };
 
 export const disciplinas: readonly Disciplina[] = [informaticaBasica];

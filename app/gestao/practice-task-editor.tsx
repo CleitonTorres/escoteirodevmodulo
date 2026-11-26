@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { typingLevels } from "@/data/disciplinas";
 import { desktopApps, desktopNameLimit, desktopSheetRows, initialDesktopItems } from "@/lib/desktop-files";
 import type { PracticeCheck, PracticeTask } from "@/lib/practice";
-import { desktopActions, documentAlignments, documentBlocks, entryTypes, favoritePages,
-  listValues, practiceFromFields, practiceKinds, searchEngines, sheetSteps, shortcutActions,
+import { codeRules, desktopActions, documentAlignments, documentBlocks, entryTypes, favoritePages,
+  practiceFromFields, practiceKinds, searchEngines, sheetSteps, shortcutActions,
   taskField, taskLimit } from "@/lib/practice-form";
 
 type Kind = PracticeCheck["kind"];
@@ -19,6 +19,7 @@ type Draft = {
 
 const typingOptions = Object.fromEntries(typingLevels.map((level, index) => [index + 1, `${index + 1} · ${level.name}`]));
 const appOptions = Object.fromEntries(desktopApps.map((app) => [app, app]));
+const taskKinds = Object.fromEntries(Object.entries(practiceKinds).filter(([kind]) => kind !== "quiz"));
 
 export default function PracticeTaskEditor({ tasks }: { tasks: PracticeTask[] }) {
   const panel = useRef<HTMLElement>(null);
@@ -46,49 +47,75 @@ export default function PracticeTaskEditor({ tasks }: { tasks: PracticeTask[] })
     setDrafts((current) => current.map((draft) => draft.id === id ? { ...draft, ...changes } : draft));
   }
 
-  function addTask() {
+  function addTask(kind: Draft["kind"]) {
     // getRandomValues is available on a local network served over HTTP too.
     const id = crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint32Array(4)),
       (part) => part.toString(16).padStart(8, "0")).join("");
-    setDrafts((current) => current.length < taskLimit
-      ? [...current, { id, instruction: "", kind: "", desktopAction: "" }]
-      : current);
+    setDrafts((current) => {
+      if (current.length >= taskLimit) return current;
+      const draft = { id, instruction: "", kind, desktopAction: "" };
+      const firstQuiz = current.findIndex((item) => item.kind === "quiz");
+      if (kind === "quiz" || firstQuiz < 0) return [...current, draft];
+      return [...current.slice(0, firstQuiz), draft, ...current.slice(firstQuiz)];
+    });
   }
 
-  return <section className="practice-editor" ref={panel} aria-label="Tarefas práticas" onInvalidCapture={() => {
-    const details = panel.current?.closest("details");
+  function renderDraft(draft: Draft, index: number) {
+    const quiz = draft.kind === "quiz";
+    const saved = draft.initial?.check;
+    const instructionId = taskField(draft.id, "instruction");
+    const hintId = taskField(draft.id, "hint");
+    const label = quiz ? "Pergunta" : "Tarefa";
+    const remove = quiz ? "Remover pergunta" : "Remover tarefa";
+    return <fieldset key={draft.id} className="practice-editor-task">
+      <legend>{label} {index + 1}</legend>
+      <div className="practice-editor-field">
+        <label htmlFor={instructionId}>{quiz ? "Enunciado" : "Instrução da tarefa"}</label>
+        <textarea id={instructionId} name={instructionId} rows={2} required maxLength={500}
+          value={draft.instruction} onChange={(event) => update(draft.id, { instruction: event.target.value })} />
+      </div>
+      <div className="practice-editor-field">
+        <label htmlFor={hintId}>Dica, opcional</label>
+        <textarea id={hintId} name={hintId} rows={2} maxLength={750} defaultValue={draft.initial?.hint} />
+      </div>
+      {quiz ? <input type="hidden" name={taskField(draft.id, "kind")} value="quiz" /> :
+        <Choice label="Tipo de verificação" name={taskField(draft.id, "kind")} options={taskKinds}
+          value={draft.kind} required onChange={(kind) => {
+            if (kind && !Object.hasOwn(taskKinds, kind)) return;
+            update(draft.id, { kind: kind as Draft["kind"], desktopAction: kind === "desktop-event" && saved?.kind === kind ? saved.action : "" });
+          }} />}
+      <CheckFields key={draft.kind} draft={draft} previous={drafts.slice(0, drafts.indexOf(draft))}
+        onAction={(desktopAction) => update(draft.id, { desktopAction })} />
+      <button type="button" className="management-danger" onClick={() => setDrafts((current) => current.filter(({ id }) => id !== draft.id))}
+        aria-label={`${remove} ${index + 1}`}>{remove}</button>
+    </fieldset>;
+  }
+
+  const practical = drafts.filter(({ kind }) => kind !== "quiz");
+  const questions = drafts.filter(({ kind }) => kind === "quiz");
+  const atLimit = drafts.length >= taskLimit;
+  return <section ref={panel} aria-label="Atividades da aula" className="management-stack" onInvalidCapture={(event) => {
+    const details = (event.target as HTMLElement).closest("details");
     if (details) details.open = true;
   }}>
-    {drafts.length === 0 && <p>Nenhuma tarefa prática cadastrada.</p>}
-    {drafts.map((draft, index) => {
-      const saved = draft.initial?.check;
-      const instructionId = taskField(draft.id, "instruction");
-      const hintId = taskField(draft.id, "hint");
-      return <fieldset key={draft.id} className="practice-editor-task">
-        <legend>Tarefa {index + 1}</legend>
-        <input type="hidden" name="practiceTaskId" value={draft.id} />
-        <div className="practice-editor-field">
-          <label htmlFor={instructionId}>Instrução da tarefa</label>
-          <textarea id={instructionId} name={instructionId} rows={2} required maxLength={500}
-            value={draft.instruction} onChange={(event) => update(draft.id, { instruction: event.target.value })} />
-        </div>
-        <div className="practice-editor-field">
-          <label htmlFor={hintId}>Dica, opcional</label>
-          <textarea id={hintId} name={hintId} rows={2} maxLength={750} defaultValue={draft.initial?.hint} />
-        </div>
-        <Choice label="Tipo de verificação" name={taskField(draft.id, "kind")} options={practiceKinds}
-          value={draft.kind} required onChange={(kind) => {
-            if (kind && !Object.hasOwn(practiceKinds, kind)) return;
-            update(draft.id, { kind: kind as Draft["kind"], desktopAction: kind === "desktop-event" && saved?.kind === kind ? saved.action : "" });
-          }} />
-        <CheckFields key={draft.kind} draft={draft} previous={drafts.slice(0, index)}
-          onAction={(desktopAction) => update(draft.id, { desktopAction })} />
-        <button type="button" className="management-danger" onClick={() => setDrafts((current) => current.filter(({ id }) => id !== draft.id))}
-          aria-label={`Remover tarefa ${index + 1}`}>Remover tarefa</button>
-      </fieldset>;
-    })}
-    <button type="button" className="primary-btn" onClick={addTask} disabled={drafts.length >= taskLimit}>Adicionar tarefa</button>
-    {drafts.length >= taskLimit && <p>Esta aula atingiu o limite de {taskLimit} tarefas.</p>}
+    {drafts.map(({ id }) => <input key={id} type="hidden" name="practiceTaskId" value={id} />)}
+    <details>
+      <summary>Tarefas práticas ({practical.length})</summary>
+      <div className="practice-editor">
+        {practical.map(renderDraft)}
+        {practical.length === 0 && <p>Nenhuma tarefa prática cadastrada.</p>}
+        <button type="button" className="primary-btn" onClick={() => addTask("")} disabled={atLimit}>Adicionar tarefa</button>
+      </div>
+    </details>
+    <details>
+      <summary>Quiz da aula ({questions.length} {questions.length === 1 ? "pergunta" : "perguntas"})</summary>
+      <div className="practice-editor">
+        {questions.map(renderDraft)}
+        {questions.length === 0 && <p>Nenhuma pergunta cadastrada.</p>}
+        <button type="button" className="primary-btn" onClick={() => addTask("quiz")} disabled={atLimit}>Adicionar pergunta</button>
+      </div>
+    </details>
+    {atLimit && <p>Esta aula atingiu o limite de {taskLimit} atividades.</p>}
   </section>;
 }
 
@@ -177,6 +204,8 @@ function CheckFields({ draft, previous, onAction }: {
         defaultValue={saved?.kind === "typing" ? saved.level : undefined} required />;
     case "word":
       return <WordFields id={draft.id} check={saved?.kind === "word" ? saved : undefined} />;
+    case "code":
+      return <CodeFields id={draft.id} check={saved?.kind === "code" ? saved : undefined} />;
     case "sheet": {
       const check = saved?.kind === "sheet" ? saved : undefined;
       return <>
@@ -249,19 +278,51 @@ function WordFields({ id, check }: { id: string; check?: Extract<PracticeCheck, 
   </>;
 }
 
+function CodeFields({ id, check }: { id: string; check?: Extract<PracticeCheck, { kind: "code" }> }) {
+  const [rule, setRule] = useState<string>(check?.rule ?? "markers");
+  const field = (name: string) => taskField(id, name);
+  return <>
+    <PathField label="Caminho do arquivo de código" name={field("file")} value={check?.file} />
+    <Choice label="Critério do código" name={field("rule")} options={{ markers: "Trechos esperados no arquivo", ...codeRules }}
+      value={rule} onChange={setRule} required />
+    {rule === "markers" && <label>Trechos esperados, um por linha
+      <textarea name={field("markers")} defaultValue={check?.markers?.join("\n")} rows={4} required />
+      <small>Em JavaScript, use palavras e símbolos completos, como console.log( ou while.</small>
+    </label>}
+    <label className="management-check">
+      <input type="checkbox" name={field("quickStart")} defaultChecked={check?.quickStart} /> Criar o arquivo ao abrir pela prática
+    </label>
+  </>;
+}
+
 function QuizFields({ id, check }: { id: string; check?: Extract<PracticeCheck, { kind: "quiz" }> }) {
-  const [options, setOptions] = useState(check?.options.join("\n") ?? "");
-  const choices = Object.fromEntries(listValues(options, /\r?\n/).slice(0, 8).map((option, index) => [index, `${index + 1} · ${option}`]));
-  const optionsId = taskField(id, "options");
+  const [options, setOptions] = useState(() => (check?.options ?? ["", ""]).map((text, key) => ({ key, text })));
+  const [answer, setAnswer] = useState(check?.answer);
+  const nextKey = useRef(options.length);
+  const optionName = taskField(id, "option");
+  const answerName = taskField(id, "answer");
   const feedbackId = taskField(id, "feedback");
   return <>
-    <div className="practice-editor-field">
-      <label htmlFor={optionsId}>Alternativas</label>
-      <textarea id={optionsId} name={optionsId} rows={4} required maxLength={4007} aria-describedby={`${optionsId}-help`}
-        value={options} onChange={(event) => setOptions(event.target.value)} />
-      <small id={`${optionsId}-help`}>Digite de duas a oito alternativas, uma por linha.</small>
-    </div>
-    <Choice label="Resposta correta" name={taskField(id, "answer")} options={choices} defaultValue={check?.answer} required />
+    <fieldset className="quiz-alternatives">
+      <legend>Alternativas</legend>
+      {options.map(({ key, text }, index) => <div className="quiz-option" key={key}>
+        <label>Alternativa {index + 1}
+          <input name={optionName} required maxLength={500} defaultValue={text} />
+        </label>
+        <label className="management-check">
+          <input type="radio" name={answerName} required value={index} checked={answer === key} onChange={() => setAnswer(key)} />
+          Marcar alternativa {index + 1} como correta
+        </label>
+        {options.length > 2 && <button type="button" className="secondary-btn" onClick={() => {
+          setOptions((current) => current.filter((option) => option.key !== key));
+          if (answer === key) setAnswer(undefined);
+        }}>Remover alternativa {index + 1}</button>}
+      </div>)}
+      {options.length < 8 && <button type="button" className="secondary-btn" onClick={() => {
+        const key = nextKey.current++;
+        setOptions((current) => [...current, { key, text: "" }]);
+      }}>Adicionar alternativa</button>}
+    </fieldset>
     <div className="practice-editor-field">
       <label htmlFor={feedbackId}>Explicação da resposta</label>
       <textarea id={feedbackId} name={feedbackId} rows={2} maxLength={1000} required defaultValue={check?.feedback} />

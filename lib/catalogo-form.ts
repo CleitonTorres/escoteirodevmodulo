@@ -1,9 +1,10 @@
 import { typingLevels } from "@/data/disciplinas";
 import type { Lesson, LessonResource } from "@/data/lessons";
-import { desktopApps, desktopSheetRows, validDesktopName } from "@/lib/desktop-files";
+import { desktopApps, desktopSheetRows, isCodeFile, validDesktopName } from "@/lib/desktop-files";
+import { validJavascriptMarker } from "@/lib/code-practice";
 import type { PracticeCheck, PracticeTask } from "@/lib/practice";
-import { pageAddress, resolveAddress } from "@/app/browser-content";
-import { desktopActions, documentAlignments, documentBlocks, entryTypes, practiceFromFields,
+import { pageAddress, resolveAddress } from "@/data/browser-content";
+import { codeRules, desktopActions, documentAlignments, documentBlocks, entryTypes, practiceFromFields,
   searchEngines, sheetSteps, shortcutActions, taskLimit } from "@/lib/practice-form";
 
 export function field(form: FormData, name: string) {
@@ -21,7 +22,7 @@ const whole = (value: unknown, min: number, max: number): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max;
 const oneOf = (value: unknown, values: readonly string[]) => typeof value === "string" && values.includes(value);
 const supported = (value: unknown, options: Record<string, string>) => typeof value === "string" && Object.hasOwn(options, value);
-const path = (value: unknown) => Array.isArray(value) && value.length > 0 && value.length <= 12 &&
+const path = (value: unknown): value is string[] => Array.isArray(value) && value.length > 0 && value.length <= 12 &&
   value.every((name) => typeof name === "string" && validDesktopName(name));
 const desktopName = (value: unknown) => typeof value === "string" && validDesktopName(value);
 
@@ -43,6 +44,14 @@ function readCheck(value: unknown): value is PracticeCheck {
         (value.app === undefined || (value.entry === "shortcut" && oneOf(value.app, desktopApps))) &&
         (value.itemId === undefined || text(value.itemId, 64));
     case "typing": return whole(value.level, 1, typingLevels.length);
+    case "code": {
+      if (!path(value.file) || (value.quickStart !== undefined && typeof value.quickStart !== "boolean")) return false;
+      const file = value.file.at(-1) ?? "";
+      const javascript = /\.js$/i.test(file);
+      if (value.rule !== undefined) return supported(value.rule, codeRules) && javascript && value.markers === undefined;
+      return isCodeFile(file) && Array.isArray(value.markers) && value.markers.length > 0 && value.markers.length <= 12 &&
+        value.markers.every((marker) => text(marker, 120) && (!javascript || validJavascriptMarker(marker)));
+    }
     case "word": {
       const block = value.block;
       return path(value.file) && isRecord(block) && supported(block.type, documentBlocks) &&
@@ -102,6 +111,7 @@ export function readLesson(form: FormData): Omit<Lesson, "id"> | string {
   const subtitle = field(form, "subtitle");
   const objective = field(form, "objective");
   const theory = lines(field(form, "theory"));
+  const codeExample = field(form, "codeExample");
   const exercise = lines(field(form, "exercise"));
   const resourceLines = lines(field(form, "resources"));
   const guide = field(form, "guide");
@@ -113,14 +123,14 @@ export function readLesson(form: FormData): Omit<Lesson, "id"> | string {
   const icon = field(form, "icon") || "📘";
   if (!text(title, 150) || !text(subtitle, 200) || !text(objective, 1000) || !text(guide, 1600) ||
     !whole(month, 1, 36) || !theory.length || theory.length > 20 || theory.some((line) => !text(line, 1000)) ||
-    icon.length > 12) return "Revise os campos da aula.";
+    icon.length > 12 || codeExample.length > 6000) return "Revise os campos da aula.";
   if (videoUrl.some((url) => !https(url))) return "Informe um endereço HTTPS válido para cada vídeo.";
   const tool = selectedTool === "arquivos" || selectedTool === "digitacao" || selectedTool === "navegador"
     ? selectedTool : undefined;
   if (selectedTool && !tool) return "Escolha uma ferramenta válida.";
   const practice = readPractice(form);
-  if (!practice) return "Revise os campos das tarefas práticas e escolha opções reconhecidas pelo simulador.";
-  if (exercise.length > 12 || exercise.some((step) => !text(step, 1000))) return "Revise os passos do exercício.";
+  if (!practice) return "Revise os campos das tarefas práticas e do quiz.";
+  if (exercise.length > 12 || exercise.some((step) => !text(step, 1000))) return "Revise as orientações extras.";
   if (resourceLines.length > 8) return "Informe até oito recursos por aula.";
   const resources: LessonResource[] = [];
   for (const line of resourceLines) {
@@ -131,5 +141,5 @@ export function readLesson(form: FormData): Omit<Lesson, "id"> | string {
     resources.push({ title, url: new URL(url).href });
   }
   return { title, subtitle, objective, theory, guide, month, icon, practice, ...(tool && { tool }), videoUrl,
-    ...(exercise.length && { exercise }), ...(resources.length && { resources }) };
+    ...(exercise.length && { exercise }), ...(resources.length && { resources }), ...(codeExample && { codeExample }) };
 }

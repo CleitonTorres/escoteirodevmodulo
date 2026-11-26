@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Check, ChevronRight, Compass, Minus, Plus } from "lucide-react";
 import type { Lesson } from "@/data/lessons";
 import { practiceKey, taskDone, type PracticeEvent, type PracticeTask } from "@/lib/practice";
@@ -8,11 +8,12 @@ import type { Progress } from "@/lib/storage";
 
 export type ObservePractice = (event: PracticeEvent) => Promise<Record<string, string> | null>;
 
-export function PracticeAssistant({ task, minimized, toggle, openGuide }: {
+export function PracticeAssistant({ task, minimized, toggle, openGuide, guideLabel }: {
   task?: PracticeTask;
   minimized: boolean;
   toggle: () => void;
   openGuide: () => void;
+  guideLabel: string;
 }) {
   const contentId = useId();
   const ToggleIcon = minimized ? Plus : Minus;
@@ -32,18 +33,19 @@ export function PracticeAssistant({ task, minimized, toggle, openGuide }: {
       <div className="practice-assistant-body" id={contentId} hidden={minimized}>
         <div role="status" aria-atomic="true">
           <strong>{task ? task.action : "Todas as tarefas foram cumpridas."}</strong>
-          {task?.hint && <p><b>Dica</b> {task.hint}</p>}
+          {task?.hint && <p className="practice-hint"><b>Dica</b> {task.hint}</p>}
         </div>
-        {!task && <button type="button" className="secondary-btn" onClick={openGuide}>Ir para Meu guia</button>}
+        {!task && <button type="button" className="secondary-btn" onClick={openGuide}>Abrir {guideLabel}</button>}
       </div>
     </aside>
   );
 }
 
-export function PracticeChecklist({ lesson, progress, observe }: {
+export function PracticeChecklist({ lesson, progress, observe, renderAction }: {
   lesson: Lesson;
   progress: Progress;
   observe?: ObservePractice;
+  renderAction?: (task: PracticeTask) => ReactNode;
 }) {
   return <ol className="practice-checklist">
     {lesson.practice.map((task) => {
@@ -56,7 +58,8 @@ export function PracticeChecklist({ lesson, progress, observe }: {
             {done ? "Cumprida" : "Pendente"}
           </span>
         </div>
-        {!done && task.hint && <p>{task.hint}</p>}
+        {!done && task.hint && <p className="practice-hint">{task.hint}</p>}
+        {renderAction?.(task)}
         {task.check.kind === "quiz" && observe && <QuizTask lessonId={lesson.id} task={task} done={done} observe={observe} />}
       </li>;
     })}

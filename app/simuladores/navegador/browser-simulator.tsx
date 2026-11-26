@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, BookOpen, Compass, Eye, EyeOff, Globe2, House, KeyRound, LockKeyhole, RotateCw, Search, ShieldCheck, Star, Trash2, X } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { articles, challenges, demoAccount, engines, getEngine, homePage, pageAddress, pageTitle, resolveAddress, searchArticles, searchTips, type BrowserPage, type Engine } from "./browser-content";
+import { articles, challenges, demoAccount, engines, getEngine, homePage, pageAddress, pageTitle, resolveAddress, searchArticles, searchTips, type BrowserPage, type Engine } from "@/data/browser-content";
 import "./browser-simulator.css";
 
 type Preferences = { favorites: string[]; demoPasswordSaved: boolean; engine: Engine };

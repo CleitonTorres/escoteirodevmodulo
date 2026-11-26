@@ -1,5 +1,5 @@
 {
-  "name": "trilhati",
+  "name": "aprender-trilha-digital",
   "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.15.1",
@@ -17,6 +17,8 @@
     "@tiptap/starter-kit": "3.35.0",
     "@univerjs/preset-sheets-core": "1.6.2",
     "@univerjs/presets": "1.6.2",
+    "acorn": "8.19.0",
+    "fflate": "0.8.2",
     "lucide-react": "^0.468.0",
     "mongodb": "^6.21.0",
     "next": "16.4.6",
