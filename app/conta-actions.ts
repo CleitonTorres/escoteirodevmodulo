@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { isDuplicateKey } from "@/lib/mongodb";
 import { isValidNewPassword, passwordHint } from "@/lib/auth/password-policy";
+import { normalizeEmail, readField, readStudentProfile, type StudentProfile } from "@/lib/auth/profile";
 import { hashPassword, verifyPassword } from "@/lib/auth/passwords";
 import { allowAttempt, allowClientAttempt } from "@/lib/auth/rate-limit";
 import { createSession, endSession } from "@/lib/auth/session";
@@ -11,7 +12,7 @@ import { authStore } from "@/lib/auth/store";
 import { digest, isToken, randomToken } from "@/lib/auth/tokens";
 import { authMailConfig, confirmationHours, logMailError, sendConfirmationMail, sendResetMail } from "@/lib/auth/mail";
 
-type FormState = { error?: string; message?: string; nome?: string; email?: string };
+type FormState = { error?: string; message?: string; nome?: string; email?: string; perfil?: StudentProfile };
 const unavailable = { error: "Serviço indisponível. Tente novamente em instantes." };
 const tooMany = { error: "Muitas tentativas. Aguarde alguns minutos e tente novamente." };
 const invalidLogin = { error: "E-mail ou senha inválidos." };
@@ -29,16 +30,6 @@ function createEmailConfirmation() {
   };
 }
 
-function readField(formData: FormData, name: string, maxLength: number) {
-  const value = formData.get(name);
-  return typeof value === "string" && value.length <= maxLength ? value : "";
-}
-
-function normalizeEmail(value: string) {
-  const email = value.trim().toLowerCase();
-  return email.length <= 254 && /^[^\s@<>(),;:"\\\[\]]+@[^\s@<>(),;:"\\\[\]]+\.[^\s@<>(),;:"\\\[\]]+$/.test(email) ? email : "";
-}
-
 function readNewPassword(formData: FormData) {
   const password = formData.get("password");
   if (typeof password !== "string" || !isValidNewPassword(password)) return { error: passwordHint };
@@ -47,11 +38,13 @@ function readNewPassword(formData: FormData) {
 }
 
 export async function cadastrar(_: FormState, formData: FormData): Promise<FormState> {
-  const fields = { nome: readField(formData, "nome", 100), email: readField(formData, "email", 254) };
+  const { perfil, error: profileError } = readStudentProfile(formData);
+  const fields = { nome: readField(formData, "nome", 100), email: readField(formData, "email", 254), perfil };
   const email = normalizeEmail(fields.email);
   const nome = fields.nome.trim();
   const { password, error } = readNewPassword(formData);
   if (!nome || !email) return { ...fields, error: "Informe seu nome e um e-mail válido." };
+  if (profileError) return { ...fields, error: profileError };
   if (!password) return { ...fields, error };
   const config = authMailConfig();
   if (!config) return { ...fields, ...confirmationUnavailable };
@@ -62,7 +55,7 @@ export async function cadastrar(_: FormState, formData: FormData): Promise<FormS
     const { alunos } = await authStore();
     const passwordHash = await hashPassword(password);
     await alunos.insertOne({
-      nome, email, passwordHash, passwordVersion: 1, createdAt: new Date(),
+      nome, email, perfil, passwordHash, passwordVersion: 1, createdAt: new Date(),
       role: "aluno", status: "pendente", emailConfirmation: record,
     });
   } catch (error) {
@@ -142,7 +135,7 @@ export async function entrar(_: FormState, formData: FormData): Promise<FormStat
     const valid = await verifyPassword(password, aluno?.passwordHash);
     if (!aluno || !valid) return { ...fields, ...invalidLogin };
     if (aluno.status === "pendente") return { ...fields, error: "Confirme seu e-mail para entrar. Você pode solicitar um novo link abaixo." };
-    await createSession(aluno._id, aluno.passwordVersion);
+    if (!await createSession(aluno._id, aluno.passwordVersion)) return { ...fields, ...invalidLogin };
   } catch {
     console.error("Falha no login de aluno.");
     return { ...fields, ...unavailable };
@@ -197,7 +190,7 @@ export async function redefinirSenha(_: FormState, formData: FormData): Promise<
     const result = await alunos.updateOne(filter(), {
       $set: { passwordHash },
       $inc: { passwordVersion: 1 },
-      $unset: { passwordReset: "" },
+      $unset: { passwordReset: "", emailChange: "", accountDeletion: "" },
     });
     if (!result.modifiedCount) return invalidReset;
   } catch {

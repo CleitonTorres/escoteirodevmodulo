@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 58">
+<rect x="1" y="1" width="698" height="56" rx="8" fill="#163e35" stroke="none"/>
+<rect x="12" y="9" width="97" height="40" rx="6" fill="#ffffff" stroke="none"/>
+<text x="25" y="35" fill="#15352e" font-family="system-ui,sans-serif" font-size="16" font-weight="400">⊞  Iniciar</text>
+<rect x="120" y="9" width="145" height="40" rx="6" fill="#315b50" stroke="none"/>
+<g transform="translate(132 19) scale(0.35)">
+<path d="M2 12a5 5 0 0 1 5-5h21l7 7h28a5 5 0 0 1 5 5v27a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5z" fill="#edba53" stroke="#9d5e12" stroke-width="2"/>
+<path d="M3 22h64v24a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#ffd479"/>
+</g>
+<text x="164" y="35" fill="#fff" font-family="system-ui,sans-serif" font-size="16" font-weight="400">Arquivos</text>
+<rect x="275" y="9" width="150" height="40" rx="6" fill="#315b50" stroke="none"/>
+<g transform="translate(285 17) scale(0.39)" stroke="#18669c" stroke-width="3">
+<circle cx="30" cy="30" r="26" fill="#dff2fe"/>
+<ellipse cx="30" cy="30" rx="12" ry="26" fill="none"/>
+<path d="M4 30h52M8 18h44M8 42h44" fill="none"/>
+</g>
+<text x="316" y="35" fill="#fff" font-family="system-ui,sans-serif" font-size="16" font-weight="400">Navegador</text>
+<text x="614" y="35" fill="#fff" font-family="system-ui,sans-serif" font-size="17" font-weight="600">10:15</text>
+</svg>

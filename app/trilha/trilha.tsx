@@ -6,6 +6,7 @@ import {
   Keyboard,
   Folder,
   FileText,
+  NotebookPen,
   Code2,
   Table2,
   Globe,
@@ -25,15 +26,20 @@ import {
   Lock,
   MapPin,
 } from "lucide-react";
-import { initialTypingDraft, isProgramacaoBasica, typingLevels, type Disciplina } from "@/data/disciplinas";
-import type { Lesson } from "@/data/lessons";
+import { informaticaBasica, initialTypingDraft, isProgramacaoBasica, typingLevels, type Disciplina } from "@/data/disciplinas";
+import type { DevinhoContext } from "@/data/devinho";
+import type { Lesson } from "@/data/lesson-types";
+import { theoryBlocks } from "@/data/lesson-theory";
+import TheoryIllustration from "./theory-figure";
 import { lessonVideo } from "@/lib/lesson-video";
-import { lessonUnlocked, taskDone, type PracticeEvent } from "@/lib/practice";
+import { currentSimulationStep, lessonUnlocked, taskDone, type PracticeEvent, type PracticeTask } from "@/lib/practice";
 import { journalNoteLimit, type Progress } from "@/lib/storage";
 import { typingMinimumScore, typingScore, type TypingAttempt } from "@/lib/typing-score";
 import { sair } from "@/app/conta-actions";
 import { concluirAula, registrarDigitacao, registrarPratica, salvarDiario, salvarGuia } from "@/app/progresso-actions";
 import { FinishLesson, PracticeAssistant, PracticeChecklist, PracticeShortcuts } from "./lesson-practice";
+import DevinhoHelp from "./devinho-help";
+import JournalNotes from "./journal-notes";
 import TypingPanel from "@/app/simuladores/digitacao/typing-panel";
 import DesktopLab, { type ExplorerWindow } from "@/app/simuladores/area-de-trabalho/desktop-lab";
 import { availableName, desktopCellLimit, desktopEntryAt, desktopFileApp, desktopPath, desktopSheetColumns, desktopSheetRows, desktopSizeError, desktopTextLimit, hasName, isAvailable, isCodeFile, isDesktopDocument, nextDesktopSlot, type DesktopFile, type FolderId } from "@/lib/desktop-files";
@@ -41,8 +47,9 @@ import { readWordDocument, wordFromText, type WordValue } from "@/lib/word-docum
 import { useDesktopProgress } from "@/app/simuladores/area-de-trabalho/use-desktop-progress";
 import WordEditor from "@/app/simuladores/editor-texto/word-editor";
 import BrowserSimulator from "@/app/simuladores/navegador/browser-simulator";
-import CodeEditor from "@/app/simuladores/editor-codigo/code-editor";
+import CodeEditor, { NewCodeFileForm } from "@/app/simuladores/editor-codigo/code-editor";
 import Image from "next/image";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { sheetFromRows, sheetPlainText, sheetTextRows, type SheetWorkbook } from "@/lib/sheet-workbook";
@@ -72,11 +79,13 @@ type TrilhaProps = {
   disciplina: Disciplina;
   opcoesDisciplinas: Pick<Disciplina, "id" | "nome">[];
   initialProgress: Progress;
+  initialView?: "Minhas anotações";
   preview?: { lessonId?: number };
 };
 
-export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas, initialProgress, preview }: TrilhaProps) {
+export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas, initialProgress, initialView, preview }: TrilhaProps) {
   const { aulas: lessons, meses: monthNames } = disciplina;
+  const basic = disciplina.id === informaticaBasica.id;
   const programming = isProgramacaoBasica(disciplina);
   const guideLabel = programming ? "Diário" : "Meu guia";
   const previewStart = preview?.lessonId;
@@ -85,7 +94,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   const [navigationPending, startTransition] = useTransition();
   const [disciplineError, setDisciplineError] = useState("");
   const switchingDiscipline = preparingDiscipline || navigationPending;
-  const [view, setView] = useState(previewStart === undefined ? "Início" : "Aula"),
+  const [view, setView] = useState(initialView ?? (previewStart === undefined ? "Início" : "Aula")),
     [selected, setSelected] = useState<number | undefined>(previewStart ?? lessons[0]?.id),
     [progress, setProgress] = useState(initialProgress),
     [query, setQuery] = useState(""),
@@ -121,6 +130,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   const [typingSaveError, setTypingSaveError] = useState("");
   const [practicing, setPracticing] = useState(false);
   const [assistantMinimized, setAssistantMinimized] = useState(false);
+  const [devinhoState, setDevinhoState] = useState<DevinhoContext>("nenhum");
   const [practicePending, setPracticePending] = useState(0);
   const [verifyingFile, setVerifyingFile] = useState(false);
   const [practiceFailure, setPracticeFailure] = useState<{ event: PracticeEvent; message: string } | null>(null);
@@ -200,6 +210,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   };
 
   const lesson = lessons.find((x) => x.id === selected);
+  const displayLesson = (id: number) => basic ? lessons.findIndex((item) => item.id === id) + 1 : id;
   const note = lesson ? journalDrafts?.[lesson.id] ?? progress.journal?.[lesson.id] ?? "" : "";
   const noteDirty = Boolean(lesson && note !== (progress.journal?.[lesson.id] ?? ""));
   const codeTasks = lesson?.practice.flatMap(({ id, check }) => {
@@ -214,9 +225,34 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   const tasksDone = (lesson?.practice.length ?? 0) - pendingTasks.length;
   const hasPractice = Boolean(lesson?.practice.length || lesson?.exercise?.length);
   const assistantTask = pendingTasks[0];
+  const startDesktopOff = practicing && pendingTasks.some(({ check }) =>
+    check.kind === "desktop-control" && (check.action === "power-on" || check.action === "session-enter"));
+  function devinhoContextForTask(task: PracticeTask): DevinhoContext {
+    const { check } = task;
+    if (check.kind === "desktop-control" || check.kind === "desktop-event") return devinhoState;
+    if (check.kind !== "sheet" || check.step !== "total") return "nenhum";
+    const entry = desktopEntryAt(desktopItems, check.file);
+    const workbook = entry?.kind === "file" ? entry.workbook : undefined;
+    const cells = workbook?.sheets[workbook.sheetOrder[0]]?.cellData;
+    const end = check.itemCount + 1;
+    const formula = cells?.[end]?.[3]?.f?.toUpperCase().replace(/[\s$]/g, "");
+    return formula && /^(?:=SUM|=SOMA)\(D\d+:D\d+\)$/.test(formula) &&
+      ![ `=SUM(D2:D${end})`, `=SOMA(D2:D${end})` ].includes(formula) ? "intervalo-parcial"
+      : cells && Array.from({ length: check.itemCount }, (_, i) => cells[i + 1]?.[3]).some((cell) => !cell?.f)
+        ? "faltam-subtotais" : "nenhum";
+  }
+  function renderDevinhoHelp(task: PracticeTask) {
+    if (!basic || !lesson) return null;
+    const context = devinhoContextForTask(task);
+    const step = currentSimulationStep(lesson.id, task, progress.practiceEvidence);
+    return <DevinhoHelp key={`${lesson.id}:${task.id}:${context}:${step ?? ""}`} lessonId={lesson.id} lessonTitle={lesson.title}
+      task={task} context={context} step={step} />;
+  }
   const practiceAssistant = practicing && simulatorView && lesson?.practice.length && (!lessonCompleted || assistantTask) ? (
-    <PracticeAssistant task={assistantTask} minimized={assistantMinimized} guideLabel={guideLabel}
-      toggle={() => setAssistantMinimized((minimized) => !minimized)} openGuide={openGuide} />
+    <PracticeAssistant key={lesson.id} lessonId={lesson.id} task={assistantTask} observe={observePractice} evidence={progress.practiceEvidence}
+      minimized={assistantMinimized} guideLabel={guideLabel}
+      toggle={() => setAssistantMinimized((minimized) => !minimized)} openGuide={openGuide}
+      help={assistantTask && renderDevinhoHelp(assistantTask)} />
   ) : null;
   const followingLesson = lesson && lessons[lessons.indexOf(lesson) + 1];
   const practiceTool = lesson?.tool && practiceTools[lesson.tool];
@@ -262,10 +298,21 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   }
 
   function observePractice(event: PracticeEvent) {
-    if (!practicing || !lesson || (lessonCompleted && event.kind !== "quiz") || !lesson.practice.some(({ check }) =>
-      check.kind === event.kind && (check.kind !== "desktop-event" ||
-        (event.kind === "desktop-event" && check.action === event.action && check.name.localeCompare(event.name, "pt-BR", { sensitivity: "base" }) === 0)),
-    )) return Promise.resolve({});
+    if (!practicing || !lesson || (lessonCompleted && event.kind !== "quiz")) return Promise.resolve({});
+    if (event.kind === "desktop-control" && event.action === "window-close") setDevinhoState("janela-fechada");
+    if (event.kind === "desktop-control" && event.action === "window-minimize") setDevinhoState("janela-minimizada");
+    if (event.kind === "desktop-event" && event.action === "open") setDevinhoState("nenhum");
+    if (event.kind === "desktop-event" && event.action === "trash") setDevinhoState("arquivo-na-lixeira");
+    const relevant = pendingTasks.some(({ id, check }) => {
+      if (check.kind !== event.kind) return false;
+      if (check.kind === "desktop-event" && event.kind === "desktop-event") {
+        return check.action === event.action && check.name.localeCompare(event.name, "pt-BR", { sensitivity: "base" }) === 0;
+      }
+      if ((check.kind === "desktop-control" && event.kind === "desktop-control") ||
+          (check.kind === "browser-control" && event.kind === "browser-control")) return check.action === event.action;
+      return event.kind !== "simulation" || event.taskId === id;
+    });
+    if (!relevant) return Promise.resolve({});
     const fileOperation = event.kind === "desktop-event" && event.action !== "open";
     if (fileOperation) setVerifyingFile(true);
     setPracticePending((count) => count + 1);
@@ -321,6 +368,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   const nav = [
     ["Início", Home],
     ["Aulas", BookOpen],
+    [programming ? "Minhas anotações" : "Meu guia", NotebookPen],
     ["Digitação", Keyboard],
     ["Área de trabalho", Folder],
     ["Editor de texto", FileText],
@@ -366,15 +414,16 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
     return lessonUnlocked(lessons, progress.completed, id, previewStart);
   }
 
-  function startLesson(id: number) {
+  function startLesson(id: number, initialTab = "Visão geral") {
     if (!canOpenLesson(id) || practicePending) return;
     setPracticing(false);
     setAssistantMinimized(false);
+    setDevinhoState("nenhum");
     setPracticeFailure(null);
     setOpenFileId(null);
     setSelected(id);
     setView("Aula");
-    setTab("Visão geral");
+    setTab(initialTab);
     changeTypingLevel(0);
     setMobile(false);
     focusContent();
@@ -406,6 +455,9 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
   function openGuide() {
     changeView("Aula", () => setTab("Meu guia"));
   }
+  const journalQuery = new URLSearchParams({ disciplina: disciplina.id, secao: "anotacoes" });
+  if (previewStart !== undefined) journalQuery.set("aula", String(previewStart));
+  const journalHref = `${preview ? "/gestao/visualizar" : "/"}?${journalQuery}`;
   function openDesktopFile(file: DesktopFile) {
     const app = desktopFileApp(file.name);
     changeView(programming && app === "Navegador" ? "Editor de código" : app, () => setOpenFileId(file.id));
@@ -424,10 +476,10 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
     if (error) { setCodeOpenError(error); return; }
     openCode(file);
   }
-  function newCodeFile() {
+  function newCodeFile(name: string) {
     const folder = desktopEntryAt(desktopItems, ["Arquivos"]);
     const parent = folder?.kind === "folder" ? folder.id : null;
-    createCodeFile(availableName(desktopItems, parent, "Novo arquivo.js"), parent);
+    createCodeFile(availableName(desktopItems, parent, name), parent);
   }
   function openCodeTask(task: (typeof codeTasks)[number]) {
     setCodeOpenError("");
@@ -574,7 +626,10 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
         <div className="avatar" aria-hidden="true">{initials}</div>
         <div className="profile-name">
           <b title={nome}>{nome}</b>
-          <small>{preview ? "Visualização de aula" : "Aluno da Trilha Digital"}</small>
+          {preview ? <small>Visualização de aula</small> : <Link href="/minha-conta" onNavigate={(event) => {
+            event.preventDefault();
+            void navigateWithProgress("/minha-conta");
+          }}>Minha conta</Link>}
         </div>
         <form action={async () => {
           const sheetReady = await finishSheetEditing.current?.() ?? true;
@@ -603,7 +658,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
           </button>
           <div className="breadcrumbs">
             <span className="breadcrumbs-section">Trilha de aprendizagem</span> <ChevronRight size={14} aria-hidden="true" />
-            <b>{view === "Aula" ? `Aula ${selected}` : view}</b>
+            <b>{view === "Aula" && selected !== undefined ? `Aula ${displayLesson(selected)}` : view}</b>
           </div>
           <div className="top-actions">
             <span className="today">
@@ -721,7 +776,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                           ) : !canOpenLesson(l.id) ? (
                             <><Lock size={16} aria-hidden="true" /> Bloqueada</>
                           ) : (
-                            `AULA ${String(l.id).padStart(2, "0")}`
+                            `AULA ${String(displayLesson(l.id)).padStart(2, "0")}`
                           )}
                         </span>
                       </div>
@@ -826,7 +881,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                         >
                           <span className="lesson-icon">{l.icon}</span>
                           <div>
-                            <small>AULA {String(l.id).padStart(2, "0")}</small>
+                            <small>AULA {String(displayLesson(l.id)).padStart(2, "0")}</small>
                             <b>{l.title}</b>
                             <p>{l.subtitle}</p>
                           </div>
@@ -861,7 +916,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                   <div>
                     <span className="eyebrow">
                       MÊS {lesson.month} · AULA{" "}
-                      {String(lesson.id).padStart(2, "0")}
+                      {String(displayLesson(lesson.id)).padStart(2, "0")}
                     </span>
                     <h1 tabIndex={-1}>{lesson.title}</h1>
                     <p>{lesson.subtitle}</p>
@@ -870,7 +925,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                 </div>
                 <div className="lesson-meta">
                   <span>
-                    <Clock size={14} /> 35 min
+                    <Clock size={14} /> {basic ? 60 : 35} min
                   </span>
                   {lesson.practice.length > 0 && <span>
                     <BookOpen size={14} /> {lesson.practice.length} tarefas práticas
@@ -906,12 +961,13 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                     {tab === "Teoria" ? (
                       <>
                         <h2>Teoria da aula</h2>
-                        {lesson.theory.map((p, i) => (
-                          <div className="theory-block" key={i}>
-                            <span className="theory-index">0{i + 1}</span>
-                            <p>{p}</p>
-                          </div>
-                        ))}
+                        {theoryBlocks(lesson.theory).map((block, i) => {
+                          return <div className="theory-block" key={block.id}>
+                            <span className="theory-index">{String(i + 1).padStart(2, "0")}</span>
+                            <p>{block.text}</p>
+                            {block.figure && <TheoryIllustration figure={block.figure} />}
+                          </div>;
+                        })}
                         {lesson.codeExample && <section className="lesson-code-example">
                           <h3>Exemplo de código</h3>
                           <pre tabIndex={0}><code>{lesson.codeExample}</code></pre>
@@ -959,7 +1015,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                 <div className="practice-card">
                   <div className="practice-icon">{lesson.icon}</div>
                   <span className="eyebrow">
-                    EXERCÍCIO PRÁTICO · AULA {lesson.id}
+                    EXERCÍCIO PRÁTICO · AULA {displayLesson(lesson.id)}
                   </span>
                   <h2>Tarefas da aula</h2>
                   <LessonResources lesson={lesson} />
@@ -972,12 +1028,20 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                   </button>}
                   {lesson.practice.some(({ check }) => check.kind === "shortcut") && <PracticeShortcuts observe={observePractice} />}
                   {lesson.practice.length > 0 && <PracticeChecklist lesson={lesson} progress={practiceProgress} observe={observePractice}
-                    renderAction={({ id }) => {
+                    renderAction={(task) => {
+                      const { id } = task;
                       const code = codeTasks.find((task) => task.id === id);
-                      return code && (code.file || code.check.quickStart) &&
+                      return <>
+                        {basic && (id === assistantTask?.id ? renderDevinhoHelp(task) :
+                          <details className="devinho-help">
+                            <summary>Dicas do Devinho</summary>
+                            {renderDevinhoHelp(task)}
+                          </details>)}
+                        {code && (code.file || code.check.quickStart) &&
                         <button type="button" className="secondary-btn" onClick={() => openCodeTask(code)}>
                           {code.file ? "Editar" : "Criar e abrir"} {code.check.file.at(-1)} <ArrowUpRight size={17} aria-hidden="true" />
-                        </button>;
+                        </button>}
+                      </>;
                     }} />}
                   {codeOpenError && <p role="alert">{codeOpenError}</p>}
                   {!!lesson.exercise?.length && <section className="lesson-exercise">
@@ -1004,10 +1068,11 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
                       onClick={() => void submitJournal(lesson.id, note)}>{journalPending ? "Salvando anotação." : "Salvar anotação"}</button>
                     {journalStatus?.id === lesson.id && journalStatus.error && <p role="alert">{journalStatus.error}</p>}
                     {journalStatus?.id === lesson.id && journalStatus.saved && !noteDirty && <p role="status">Anotação salva.</p>}
-                    {progress.guide.trim() && <details>
-                      <summary>Consultar minhas anotações do guia anterior</summary>
-                      <p className="journal-legacy">{progress.guide}</p>
-                    </details>}
+                    <Link className="text-link journal-link" href={journalHref} prefetch={false} onClick={(event) => {
+                      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                      event.preventDefault();
+                      changeView("Minhas anotações");
+                    }}>Ver minhas anotações por aula</Link>
                   </div> : <WordEditor {...guideEditorProps} />}
                   <FinishLesson
                     key={lesson.id}
@@ -1025,6 +1090,16 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
             </>
           )}
 
+          {view === "Minhas anotações" && <JournalNotes lessons={lessons} journal={progress.journal}
+            legacyGuide={progress.guide} canOpenLesson={canOpenLesson} openLesson={(id) => startLesson(id, "Meu guia")} />}
+
+          {view === "Meu guia" && <>
+            <div className="page-heading">
+              <h1 tabIndex={-1}>Meu guia</h1>
+            </div>
+            <WordEditor {...guideEditorProps} />
+          </>}
+
           {view === "Editor de código" && <>
             <div className="page-heading">
               <h1 tabIndex={-1}>Editor de código</h1>
@@ -1033,9 +1108,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
             {openFile ? <CodeEditor key={openFile.id} file={openFile} items={desktopItems} open={openCode}
               change={(text) => editDesktopFile(openFile.id, { text })} /> : (
               <section className="code-workbench" aria-label="Arquivos para editar">
-                <div className="code-actions">
-                  <button type="button" className="primary-btn" onClick={newCodeFile}>Novo arquivo JavaScript</button>
-                </div>
+                <NewCodeFileForm create={newCodeFile} />
                 {codeOpenError && <p role="alert">{codeOpenError}</p>}
                 {codeFiles.length > 0 && <div>
                   <h2>Abrir arquivo salvo</h2>
@@ -1070,7 +1143,7 @@ export default function Trilha({ nome, studentId, disciplina, opcoesDisciplinas,
               </div>
               <DesktopLab items={desktopItems} setItems={desktop.changeItems} explorer={explorer} setExplorer={setExplorer}
                 openApp={changeView} openFile={openDesktopFile} observe={observePractice} verifyingFile={verifyingFile}
-                assistant={practiceAssistant} />
+                assistant={practiceAssistant} startOff={startDesktopOff} flush={desktop.flush} />
             </>
           )}
 

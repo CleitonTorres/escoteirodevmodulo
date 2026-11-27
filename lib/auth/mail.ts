@@ -2,6 +2,7 @@ import "server-only";
 import { createTransport } from "nodemailer";
 
 export const confirmationHours = 24;
+export const accountLinkMinutes = 30;
 
 export function authMailConfig() {
   const { APP_URL, SMTP_HOST, SMTP_PORT = "587", SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
@@ -58,11 +59,15 @@ async function sendLinkMail(config: MailConfig, email: string, token: string, te
   const link = new URL(template.path, config.url);
   link.hash = token;
 
+  return sendAuthMail(config, email, template.subject, `${template.intro}\n\n${link.href}\n\n${template.closing}`);
+}
+
+async function sendAuthMail(config: MailConfig, email: string, subject: string, text: string) {
   const message = {
     from: config.from,
     to: [email],
-    subject: template.subject,
-    text: `${template.intro}\n\n${link.href}\n\n${template.closing}`,
+    subject,
+    text,
   };
   if (config.provider === "smtp") {
     await createTransport(config.transport).sendMail(message);
@@ -108,5 +113,28 @@ export function sendConfirmationMail(config: MailConfig, email: string, token: s
     subject: "Confirme seu cadastro na Trilha Digital",
     intro: `Se você criou uma conta na Trilha Digital, clique no link para ativá-la. O link vale por ${confirmationHours} horas.`,
     closing: "Se você não criou essa conta, ignore esta mensagem.",
+  });
+}
+
+export function sendEmailChangeMail(config: MailConfig, email: string, token: string) {
+  return sendLinkMail(config, email, token, {
+    path: "/confirmar-novo-email",
+    subject: "Confirme seu novo e-mail na Trilha Digital",
+    intro: `Abra o link para confirmar o novo e-mail da sua conta. Ele vale por ${accountLinkMinutes} minutos.`,
+    closing: "Se você não solicitou a mudança, ignore esta mensagem.",
+  });
+}
+
+export function sendEmailChangeNotice(config: MailConfig, email: string) {
+  return sendAuthMail(config, email, "Solicitação de troca de e-mail na Trilha Digital",
+    "Recebemos um pedido para alterar o e-mail da sua conta. Seu endereço atual continua valendo até que o novo seja confirmado. Se você não fez o pedido, redefina sua senha para cancelar a solicitação.");
+}
+
+export function sendAccountDeletionMail(config: MailConfig, email: string, token: string) {
+  return sendLinkMail(config, email, token, {
+    path: "/confirmar-exclusao",
+    subject: "Confirme a exclusão da sua conta na Trilha Digital",
+    intro: `Abra o link para revisar e confirmar a exclusão da sua conta e do seu progresso. Ele vale por ${accountLinkMinutes} minutos.`,
+    closing: "Se você não pediu a exclusão, ignore esta mensagem.",
   });
 }

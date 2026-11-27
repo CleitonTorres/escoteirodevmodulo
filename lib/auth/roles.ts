@@ -1,5 +1,5 @@
 export type Role = "administrador" | "professor" | "aluno";
-export type Permission = "relatorios" | "salvar-aula" | "excluir-aula" | "disciplinas" | "promover-contas";
+export type Permission = "relatorios" | "salvar-aula" | "excluir-aula" | "disciplinas" | "promover-contas" | "uso-devinho";
 
 export function accountRole(value: unknown): Role {
   return value === "administrador" || value === "professor" ? value : "aluno";

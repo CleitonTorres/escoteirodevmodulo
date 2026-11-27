@@ -259,6 +259,9 @@
   min-inline-size: 0;
   gap: 0.25rem;
 }
+.practice-editor-preview > ol > li + li {
+  margin-block-start: 0.75rem;
+}
 .management-form .quiz-alternatives {
   padding: 0.75rem;
   border: 1px solid #b7c6bc;
@@ -315,4 +318,61 @@
 .lesson-video-fields .secondary-btn {
   min-block-size: var(--touch-size);
   font-size: 1rem;
+}
+.devinho-usage { display: grid; gap: 0.875rem; }
+.devinho-usage :is(h2, p, dl) { margin: 0; }
+.devinho-month-filter { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; }
+.devinho-month-filter label { display: grid; gap: 0.25rem; font-weight: 700; }
+.devinho-month-filter :is(input, button) { min-block-size: var(--touch-size); margin: 0; }
+.devinho-month-filter input { padding: 0.45rem 0.625rem; }
+.devinho-usage-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 0.5rem; }
+.devinho-usage-totals > div { padding: 0.875rem; background: var(--paper); border: 1px solid var(--line); border-radius: 0.625rem; }
+.devinho-usage-totals dd { margin: 0.25rem 0 0; font-size: var(--text-medium); font-variant-numeric: tabular-nums; font-weight: 750; overflow-wrap: anywhere; }
+.devinho-usage-note { color: var(--muted); }
+.theory-editor,
+.theory-figure-editor,
+.theory-builder,
+.theory-layer-properties {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.875rem;
+}
+.theory-editor h3,
+.theory-builder h4 { margin: 0; }
+.management-form .theory-editor-block {
+  padding: 1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.75rem;
+  background: var(--white);
+}
+.theory-editor-block legend { padding-inline: 0.35rem; font-weight: 700; }
+.theory-buttons,
+.theory-assets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.theory-assets { margin-block-start: 0.75rem; }
+.theory-assets button {
+  flex: 0 1 9.5rem;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  text-align: center;
+}
+.theory-assets svg { inline-size: 4rem; block-size: 2.5rem; }
+.theory-canvas { min-inline-size: 0; }
+.theory-canvas [data-movable] { cursor: grab; touch-action: none; }
+.theory-canvas [data-movable]:active { cursor: grabbing; }
+.theory-layers ol {
+  display: grid;
+  gap: 0.375rem;
+  padding-inline-start: 1.5rem;
+  margin-block: 0.5rem 0;
+}
+.theory-layers button { text-align: start; overflow-wrap: anywhere; max-inline-size: 100%; }
+.theory-layers button[aria-pressed="true"] { background: #d8e9de; border-color: #2d644a; }
+.management-form .theory-layer-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.25rem), 1fr));
+  padding-block-start: 0.5rem;
 }

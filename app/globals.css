@@ -777,8 +777,10 @@ a {
   margin: 0 0 15px;
 }
 .theory-block {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem 0.625rem;
   padding: 10px 0;
   border-top: 1px solid #eff1ed;
 }
@@ -1691,3 +1693,13 @@ a {
     transition: none !important;
   }
 }
+.theory-figure { margin: 0 0 1rem; max-inline-size: 50rem; }
+.theory-scene, .theory-figure img {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+}
+.theory-scene { inline-size: 100%; }
+.theory-figure figcaption { margin-block-start: 0.5rem; color: var(--muted); }

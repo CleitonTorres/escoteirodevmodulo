@@ -20,7 +20,8 @@
   padding-inline: .875rem;
 }
 .training-browser-tabs {
-  justify-content: space-between;
+  justify-content: flex-start;
+  overflow-x: auto;
   padding-block: .5rem 0;
   background: #dce9e2;
 }
@@ -37,6 +38,10 @@
   font-weight: 700;
 }
 .training-browser-tab span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.training-browser-tab { flex: 0 0 auto; gap: .25rem; padding: .125rem .375rem; background: #d4e2d9; }
+.training-browser-tab[data-active="true"] { background: #f7faf8; box-shadow: inset 0 3px 0 #477257; }
+.training-browser-tab > .training-link { display: inline-flex; align-items: center; gap: .25rem; text-align: start; }
+.training-browser-mode { margin-inline-start: auto; white-space: nowrap; }
 .training-browser-mode { display: flex; align-items: center; gap: .35rem; font-size: .78rem; font-weight: 750; color: #285345; }
 .training-browser-toolbar { padding-block: .625rem; flex-wrap: wrap; background: #f7faf8; border-bottom: 1px solid var(--browser-line); }
 .training-browser-actions { display: flex; gap: .2rem; align-items: center; }

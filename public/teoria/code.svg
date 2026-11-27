@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270">
+<rect x="1" y="1" width="478" height="268" rx="11" fill="#ffffff" stroke="#9fb4aa"/>
+<rect x="2" y="2" width="476" height="39" rx="10" fill="#e6f0eb" stroke="none"/>
+<text x="17" y="27" fill="#193e33" font-family="system-ui,sans-serif" font-size="17" font-weight="700">Editor de código</text>
+<text x="380" y="26" fill="#15352e" font-family="system-ui,sans-serif" font-size="17" font-weight="400">―   □   ×</text>
+<rect x="12" y="52" width="456" height="203" rx="7" fill="#152d29" stroke="none"/>
+<text x="25" y="89" fill="#b9d5c4" font-family="system-ui,sans-serif" font-size="17" font-weight="400">1</text>
+<text x="55" y="89" fill="#d9f2d5" font-family="system-ui,sans-serif" font-size="20" font-weight="400">console.log("Olá, mundo!");</text>
+<text x="25" y="121" fill="#b9d5c4" font-family="system-ui,sans-serif" font-size="17" font-weight="400">2</text>
+</svg>

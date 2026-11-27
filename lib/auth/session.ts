@@ -1,7 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import type { ObjectId, WithId } from "mongodb";
-import { authStore, type Aluno } from "./store";
+import { authStore, withAccountWrite, type Aluno } from "./store";
 import { digest, isToken, randomToken } from "./tokens";
 import { accountRole } from "./roles";
 
@@ -13,12 +13,16 @@ export async function createSession(alunoId: ObjectId, passwordVersion: number) 
   const cookieStore = await cookies();
   const previous = cookieStore.get(sessionCookie)?.value;
   const { sessions } = await authStore();
-  if (isToken(previous)) await sessions.deleteOne({ _id: digest(previous) });
-
   const token = randomToken();
   const expiresAt = new Date(Date.now() + sessionDuration);
-  await sessions.insertOne({ _id: digest(token), alunoId, passwordVersion, expiresAt });
+  const created = await withAccountWrite(alunoId, passwordVersion, async (session) => {
+    if (isToken(previous)) await sessions.deleteOne({ _id: digest(previous) }, { session });
+    await sessions.insertOne({ _id: digest(token), alunoId, passwordVersion, expiresAt }, { session });
+    return true;
+  });
+  if (!created) return false;
   cookieStore.set(sessionCookie, token, { httpOnly: true, secure, sameSite: "lax", path: "/", expires: expiresAt });
+  return true;
 }
 
 export async function currentAccount() {
@@ -33,7 +37,7 @@ export async function currentAccount() {
     { _id: session.alunoId, passwordVersion: session.passwordVersion, status: { $ne: "pendente" } },
     { projection: { nome: 1, role: 1 } },
   );
-  return account && { ...account, role: accountRole(account.role) };
+  return account && { ...account, role: accountRole(account.role), passwordVersion: session.passwordVersion };
 }
 
 export async function endSession() {

@@ -7,6 +7,9 @@ export const taskLimit = 40;
 export const practiceKinds = {
   entry: "Arquivo, pasta ou atalho no local indicado",
   "desktop-event": "Ação na área de trabalho",
+  "desktop-control": "Controle do computador simulado",
+  "browser-control": "Controle do navegador de treino",
+  simulation: "Exercício com perguntas em etapas",
   typing: "Nível de digitação",
   code: "Trechos no arquivo de código",
   word: "Formatação de documento",
@@ -60,6 +63,11 @@ export function practiceFromFields(form: FormData) {
         return { ...task, check: { kind, entry: read("entry"), path: listValues(read("path"), "/"), app: optional("app"), itemId: optional("itemId") } };
       case "desktop-event":
         return { ...task, check: { kind, action, name: read("name"), from: optional("from"), after: optional("after") } };
+      case "desktop-control":
+      case "browser-control":
+        return { ...task, check: { kind, action } };
+      case "simulation":
+        return { ...task, check: { kind, scenario: read("scenario") } };
       case "shortcut":
         return { ...task, check: { kind, action } };
       case "typing":
@@ -73,9 +81,10 @@ export function practiceFromFields(form: FormData) {
         return { ...task, check: { kind, file, distinctHeadings: number("distinctHeadings"), block: {
           type: read("block"), level: number("headingLevel"), alignment: optional("alignment"),
           minLength: number("minLength"), minItems: number("minItems"), bold: optional("bold") ? read("bold") === "on" : undefined,
+          contains: optional("contains"),
         } } };
       case "sheet":
-        return { ...task, check: { kind, file, step: read("step"), itemCount: number("itemCount"),
+        return { ...task, check: { kind, file, step: read("step"), itemCount: number("itemCount"), firstQuantity: number("firstQuantity"),
           headers: [read("header1"), read("header2"), read("header3"), read("header4")] } };
       case "quiz": {
         const fields = form.getAll(taskField(key, "option"));

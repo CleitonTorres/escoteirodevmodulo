@@ -1,4 +1,5 @@
 import { currentAccount } from "@/lib/auth/session";
+import { isProgramacaoBasica } from "@/data/disciplinas";
 import { listarDisciplinas } from "@/lib/catalogo";
 import { progressoAluno } from "@/lib/progresso";
 import Link from "next/link";
@@ -7,7 +8,7 @@ import { sair } from "@/app/conta-actions";
 import Trilha from "./trilha";
 import "./trilha.css";
 
-export type TrilhaQuery = { disciplina?: string | string[]; aula?: string | string[] };
+export type TrilhaQuery = { disciplina?: string | string[]; aula?: string | string[]; secao?: string | string[] };
 
 export default async function TrilhaView({ searchParams, visualizacao = false }: {
   searchParams: Promise<TrilhaQuery>;
@@ -25,7 +26,10 @@ export default async function TrilhaView({ searchParams, visualizacao = false }:
     <h1>Nenhuma disciplina disponível</h1>
     {visualizacao
       ? <Link href="/gestao" className="secondary-btn">Voltar à gestão</Link>
-      : <form action={sair}><button className="secondary-btn" type="submit">Sair da conta</button></form>}
+      : <>
+        <Link href="/minha-conta" className="secondary-btn">Minha conta</Link>
+        <form action={sair}><button className="secondary-btn" type="submit">Sair da conta</button></form>
+      </>}
   </main>;
 
   const lessonId = visualizacao && query.aula !== undefined
@@ -35,13 +39,15 @@ export default async function TrilhaView({ searchParams, visualizacao = false }:
   const progress = await progressoAluno(account._id, disciplina.id, visualizacao);
   const accountId = account._id.toHexString();
   const studentId = visualizacao ? `visualizacao-${accountId}` : accountId;
+  const initialView = query.secao === "anotacoes" && isProgramacaoBasica(disciplina) ? "Minhas anotações" : undefined;
   return <Trilha
-    key={`${studentId}:${disciplina.id}:${lessonId ?? ""}`}
+    key={`${studentId}:${disciplina.id}:${lessonId ?? ""}:${initialView ?? ""}`}
     studentId={studentId}
     nome={account.nome}
     disciplina={disciplina}
     opcoesDisciplinas={disciplinas.map(({ id, nome }) => ({ id, nome }))}
     initialProgress={await progress.load()}
+    initialView={initialView}
     preview={visualizacao ? { lessonId } : undefined}
   />;
 }

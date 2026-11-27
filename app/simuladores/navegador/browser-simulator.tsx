@@ -1,27 +1,32 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, BookOpen, Compass, Eye, EyeOff, Globe2, House, KeyRound, LockKeyhole, RotateCw, Search, ShieldCheck, Star, Trash2, X } from "lucide-react";
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { ArrowLeft, ArrowRight, BookOpen, Compass, Eye, EyeOff, Globe2, History, House, KeyRound, LockKeyhole, Plus, RotateCw, Search, ShieldCheck, Star, Trash2, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { articles, challenges, demoAccount, engines, getEngine, homePage, pageAddress, pageTitle, resolveAddress, searchArticles, searchTips, type BrowserPage, type Engine } from "@/data/browser-content";
 import "./browser-simulator.css";
 
 type Preferences = { favorites: string[]; demoPasswordSaved: boolean; engine: Engine };
 type Navigate = (page: BrowserPage) => void;
+type BrowserTab = { id: number; pages: BrowserPage[]; index: number };
 const defaults: Preferences = { favorites: [], demoPasswordSaved: false, engine: "google" };
 
 import type { PracticeEvent } from "@/lib/practice";
 
 export default function BrowserSimulator({ studentId, observe }: { studentId: string; observe: (event: PracticeEvent) => void }) {
   const [preferences, setPreferences] = useState(defaults);
-  const [history, setHistory] = useState({ pages: [homePage], index: 0 });
+  const [tabs, setTabs] = useState<BrowserTab[]>([{ id: 1, pages: [homePage], index: 0 }]);
+  const [activeTab, setActiveTab] = useState(1);
+  const nextTab = useRef(2);
+  const [visited, setVisited] = useState([homePage]);
   const [address, setAddress] = useState(pageAddress(homePage));
-  const [panel, setPanel] = useState<"favorites" | "passwords" | null>(null);
+  const [panel, setPanel] = useState<"favorites" | "passwords" | "history" | null>(null);
   const [notice, setNotice] = useState("");
   const [addressError, setAddressError] = useState("");
   const [reload, setReload] = useState(0);
   const [ready, setReady] = useState(false);
   const panelId = useId();
   const key = "aprender/browser/" + studentId;
+  const history = tabs.find(({ id }) => id === activeTab) ?? tabs[0];
   const page = history.pages[history.index];
   const currentAddress = pageAddress(page);
   const favorite = preferences.favorites.includes(currentAddress);
@@ -60,20 +65,42 @@ export default function BrowserSimulator({ studentId, observe }: { studentId: st
     const nextAddress = pageAddress(next);
     setAddress(nextAddress);
     setAddressError("");
-    setHistory((state) => {
+    setVisited((current) => [next, ...current.filter((entry) => pageAddress(entry) !== nextAddress)].slice(0, 80));
+    setTabs((current) => current.map((state) => {
+      if (state.id !== history.id) return state;
       if (pageAddress(state.pages[state.index]) === nextAddress) return state;
       const pages = [...state.pages.slice(0, state.index + 1), next].slice(-80);
-      return { pages, index: pages.length - 1 };
-    });
+      return { ...state, pages, index: pages.length - 1 };
+    }));
+  }
+
+  function activateTab(tab: BrowserTab) {
+    setActiveTab(tab.id);
+    setAddress(pageAddress(tab.pages[tab.index]));
+    setAddressError("");
+  }
+
+  function addTab() {
+    if (tabs.length >= 8) return;
+    const tab = { id: nextTab.current++, pages: [homePage], index: 0 };
+    setTabs((current) => [...current, tab]);
+    activateTab(tab);
+    observe({ kind: "browser-control", action: "new-tab" });
+  }
+
+  function clickLink(next: BrowserPage) {
+    navigate(next);
+    observe({ kind: "browser-control", action: "link" });
   }
 
   function step(offset: number) {
     const index = history.index + offset;
     const target = history.pages[index];
     if (!target) return;
-    setHistory({ ...history, index });
+    setTabs((current) => current.map((tab) => tab.id === history.id ? { ...tab, index } : tab));
     setAddress(pageAddress(target));
     setAddressError("");
+    if (offset < 0) observe({ kind: "browser-control", action: "back" });
   }
 
   function search(term: string, at = engine) {
@@ -89,6 +116,7 @@ export default function BrowserSimulator({ studentId, observe }: { studentId: st
     if (target) {
       if (target.engine) updatePreferences({ engine: target.engine }, "");
       navigate(target.page);
+      if (target.page.kind === "start" && !target.engine) observe({ kind: "browser-control", action: "address" });
     } else if (!/^site:/i.test(text) && (/^[a-z][a-z\d+.-]*:/i.test(text) || /^[^\s/]+\.[^\s/]+(?:[/\s]|$)/.test(text))) {
       setAddressError("Endereço fora do treino. Tente trilha.example, google.com, bing.com ou uma pesquisa.");
     } else search(text);
@@ -115,7 +143,18 @@ export default function BrowserSimulator({ studentId, observe }: { studentId: st
   return (
     <section className="training-browser" aria-label="Navegador de treino" data-engine={engines[engine].theme}>
       <div className="training-browser-tabs">
-        <span className="training-browser-tab"><Globe2 size={17} aria-hidden="true" /> <span>{pageTitle(page)}</span></span>
+        {tabs.map((tab, index) => <div key={tab.id} className="training-browser-tab" data-active={tab.id === history.id}>
+          <button className="training-link" type="button" aria-pressed={tab.id === history.id} onClick={() => {
+            if (tab.id === history.id) return;
+            activateTab(tab);
+            observe({ kind: "browser-control", action: "switch-tab" });
+          }}><Globe2 size={16} aria-hidden="true" /> {pageTitle(tab.pages[tab.index])}</button>
+          {tabs.length > 1 && <button type="button" className="training-icon" aria-label={`Fechar aba ${index + 1}`} onClick={() => {
+            setTabs((current) => current.filter(({ id }) => id !== tab.id));
+            if (tab.id === history.id) activateTab(tabs[index - 1] ?? tabs[index + 1]);
+          }}><X size={16} /></button>}
+        </div>)}
+        <button type="button" className="training-icon" title="Nova aba" aria-label="Nova aba" onClick={addTab} disabled={tabs.length >= 8}><Plus size={20} /></button>
         <span className="training-browser-mode"><ShieldCheck size={16} aria-hidden="true" /> Ambiente de treino</span>
       </div>
       <div className="training-browser-toolbar">
@@ -136,6 +175,11 @@ export default function BrowserSimulator({ studentId, observe }: { studentId: st
         <div className="training-browser-actions">
           <button type="button" className="training-icon" title="Favoritos" aria-label="Favoritos" aria-expanded={panel === "favorites"}
             aria-controls={panel === "favorites" ? panelId : undefined} onClick={() => setPanel(panel === "favorites" ? null : "favorites")}><BookOpen size={20} /></button>
+          <button type="button" className="training-icon" title="Histórico" aria-label="Histórico" aria-expanded={panel === "history"}
+            aria-controls={panel === "history" ? panelId : undefined} onClick={() => {
+              setPanel(panel === "history" ? null : "history");
+              if (panel !== "history") observe({ kind: "browser-control", action: "history" });
+            }}><History size={20} /></button>
           <button type="button" className="training-icon" title="Senhas de treino" aria-label="Senhas de treino" aria-expanded={panel === "passwords"}
             aria-controls={panel === "passwords" ? panelId : undefined} onClick={() => setPanel(panel === "passwords" ? null : "passwords")}><KeyRound size={20} /></button>
         </div>
@@ -148,14 +192,14 @@ export default function BrowserSimulator({ studentId, observe }: { studentId: st
               <p>Escolha um buscador e encontre páginas dentro do simulador.</p></div>}
             <SearchBox key={page.kind === "search" ? page.term : "start"} value={page.kind === "search" ? page.term : ""} engine={engine} search={search} changeEngine={changeEngine} ready={ready} />
             {page.kind === "start" ? <div className="training-shortcuts">
-              <Shortcut icon={<Search size={22} />} title="Pesquisa guiada" detail="Aprenda a refinar resultados" open={() => navigate({ kind: "tips" })} />
-              <Shortcut icon={<ShieldCheck size={22} />} title="Central de segurança" detail="Resolva situações de navegação" open={() => navigate({ kind: "security" })} />
-              <Shortcut icon={<KeyRound size={22} />} title="Portal de treino" detail="Pratique o salvamento de senhas" open={() => navigate({ kind: "login" })} />
+              <Shortcut icon={<Search size={22} />} title="Pesquisa guiada" detail="Aprenda a refinar resultados" open={() => clickLink({ kind: "tips" })} />
+              <Shortcut icon={<ShieldCheck size={22} />} title="Central de segurança" detail="Resolva situações de navegação" open={() => clickLink({ kind: "security" })} />
+              <Shortcut icon={<KeyRound size={22} />} title="Portal de treino" detail="Pratique o salvamento de senhas" open={() => clickLink({ kind: "login" })} />
             </div> : <div className="training-results" aria-live="polite">
               <p>{results.length} {results.length === 1 ? "resultado" : "resultados"} de treino para <strong>{page.term}</strong></p>
               {results.map((result) => <article key={result.id}>
                 <small>{result.host}</small>
-                <h3><button type="button" onClick={() => navigate({ kind: "article", id: result.id })}>{result.title}</button></h3>
+                <h3><button type="button" onClick={() => clickLink({ kind: "article", id: result.id })}>{result.title}</button></h3>
                 <p>{result.summary}</p>
               </article>)}
               {!results.length && <p>Tente “senhas”, “navegador” ou “segurança digital”.</p>}
@@ -174,17 +218,21 @@ export default function BrowserSimulator({ studentId, observe }: { studentId: st
           {article && <article className="training-lesson"><p className="training-source">{article.host}</p><h2>{article.title}</h2>
             {article.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</article>}
         </div>
-        {panel && <aside id={panelId} className="training-panel" aria-label={panel === "favorites" ? "Páginas favoritas" : "Gerenciador de senhas de treino"}>
-          <header><h2>{panel === "favorites" ? "Favoritos" : "Senhas de treino"}</h2>
+        {panel && <aside id={panelId} className="training-panel"
+          aria-label={panel === "favorites" ? "Páginas favoritas" : panel === "history" ? "Histórico" : "Gerenciador de senhas de treino"}>
+          <header><h2>{panel === "favorites" ? "Favoritos" : panel === "history" ? "Histórico" : "Senhas de treino"}</h2>
             <button type="button" className="training-icon" aria-label="Fechar painel" onClick={() => setPanel(null)}><X size={20} /></button></header>
           {panel === "favorites" ? (preferences.favorites.length ? <ul className="training-favorites">
             {preferences.favorites.map((url) => {
               const target = resolveAddress(url);
               return target && <li key={url}><button type="button" className="training-link"
-                onClick={() => { navigate(target.page); setPanel(null); }}>{pageTitle(target.page)}</button>
+                onClick={() => { navigate(target.page); setPanel(null); observe({ kind: "favorite", url }); }}>{pageTitle(target.page)}</button>
                 <button type="button" className="training-icon" aria-label={`Remover favorito ${pageTitle(target.page)}`} onClick={() => toggleFavorite(url)}><Trash2 size={17} /></button>
               </li>;
             })}</ul> : <p>Use a estrela da barra de endereços para guardar a página atual.</p>)
+            : panel === "history" ? <ul className="training-favorites">{visited.map((entry) =>
+              <li key={pageAddress(entry)}><button type="button" className="training-link"
+                onClick={() => { navigate(entry); setPanel(null); }}>{pageTitle(entry)}</button></li>)}</ul>
             : <PasswordPanel saved={preferences.demoPasswordSaved} navigate={(target) => { navigate(target); setPanel(null); }}
               remove={() => updatePreferences({ demoPasswordSaved: false }, "Senha fictícia removida.")} />}
         </aside>}

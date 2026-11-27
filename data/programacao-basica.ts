@@ -1,4 +1,5 @@
-import type { Lesson, LessonResource } from "./lessons";
+import type { Lesson, LessonResource } from "./lesson-types";
+import { withLessonRoutine } from "./lesson-routine";
 import type { PracticeTask } from "../lib/practice";
 import { programmingPortfolio } from "../lib/desktop-files";
 
@@ -1796,4 +1797,4 @@ const content: Omit<Lesson, "id" | "icon">[] = [
 
 export const programacaoBasicaVersion = 3;
 
-export const programacaoBasicaAulas = content.map((lesson) => ({ ...lesson, icon: "?" }));
+export const programacaoBasicaAulas = content.map((lesson) => withLessonRoutine({ ...lesson, icon: "?" }));

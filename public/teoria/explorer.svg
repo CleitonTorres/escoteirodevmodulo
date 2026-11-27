@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 370">
+<rect x="1" y="1" width="738" height="368" rx="11" fill="#ffffff" stroke="#9fb4aa"/>
+<rect x="2" y="2" width="736" height="39" rx="10" fill="#e6f0eb" stroke="none"/>
+<text x="17" y="27" fill="#193e33" font-family="system-ui,sans-serif" font-size="17" font-weight="700">Explorador de arquivos</text>
+<text x="640" y="26" fill="#15352e" font-family="system-ui,sans-serif" font-size="17" font-weight="400">―   □   ×</text>
+<rect x="10" y="43" width="720" height="55" rx="8" fill="#f3f7f5" stroke="none"/>
+<text x="25" y="77" fill="#15352e" font-family="system-ui,sans-serif" font-size="24" font-weight="400">←   →   ↑</text>
+<rect x="140" y="52" width="370" height="40" rx="6" fill="#ffffff" stroke="#94aa9f"/>
+<g transform="translate(153 61) scale(0.4)">
+<path d="M2 12a5 5 0 0 1 5-5h21l7 7h28a5 5 0 0 1 5 5v27a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5z" fill="#edba53" stroke="#9d5e12" stroke-width="2"/>
+<path d="M3 22h64v24a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#ffd479"/>
+</g>
+<text x="191" y="79" fill="#193e33" font-family="system-ui,sans-serif" font-size="20" font-weight="650">Arquivos</text>
+<rect x="523" y="52" width="196" height="40" rx="6" fill="#ffffff" stroke="#b5c6bd"/>
+<text x="535" y="78" fill="#3f5e54" font-family="system-ui,sans-serif" font-size="14" font-weight="400">Pesquisar em Arquivos</text>
+<rect x="2" y="101" width="153" height="267" rx="0" fill="#edf4ef" stroke="none"/>
+<text x="20" y="139" fill="#15352e" font-family="system-ui,sans-serif" font-size="15" font-weight="400">Área de trabalho</text>
+<rect x="11" y="153" width="137" height="37" rx="6" fill="#d4e8dd" stroke="none"/>
+<text x="24" y="177" fill="#163e35" font-family="system-ui,sans-serif" font-size="17" font-weight="650">Arquivos</text>
+<text x="24" y="222" fill="#15352e" font-family="system-ui,sans-serif" font-size="16" font-weight="400">Lixeira</text>
+<text x="176" y="135" fill="#3f5e54" font-family="system-ui,sans-serif" font-size="15" font-weight="650">Nome</text>
+<text x="430" y="135" fill="#3f5e54" font-family="system-ui,sans-serif" font-size="15" font-weight="650">Tipo</text>
+<rect x="171" y="143" width="542" height="1" rx="0" fill="#bfd0c6" stroke="none"/>
+<g transform="translate(179 157) scale(0.42)">
+<path d="M2 12a5 5 0 0 1 5-5h21l7 7h28a5 5 0 0 1 5 5v27a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5z" fill="#edba53" stroke="#9d5e12" stroke-width="2"/>
+<path d="M3 22h64v24a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#ffd479"/>
+</g>
+<text x="219" y="178" fill="#15352e" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Textos</text>
+<text x="430" y="178" fill="#15352e" font-family="system-ui,sans-serif" font-size="15" font-weight="400">Pasta de arquivos</text>
+<g transform="translate(179 203) scale(0.42)">
+<path d="M2 12a5 5 0 0 1 5-5h21l7 7h28a5 5 0 0 1 5 5v27a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5z" fill="#edba53" stroke="#9d5e12" stroke-width="2"/>
+<path d="M3 22h64v24a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z" fill="#ffd479"/>
+</g>
+<text x="219" y="225" fill="#15352e" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Imagens</text>
+<text x="430" y="225" fill="#15352e" font-family="system-ui,sans-serif" font-size="15" font-weight="400">Pasta de arquivos</text>
+<g transform="translate(184 251) scale(0.36)">
+<path d="M8 2h24l14 14v43H8z" fill="#fff" stroke="#318174" stroke-width="3" stroke-linejoin="round"/>
+<path d="M31 2v15h15M15 28h23M15 38h23M15 48h16" fill="none" stroke="#318174" stroke-width="2"/>
+</g>
+<text x="219" y="273" fill="#15352e" font-family="system-ui,sans-serif" font-size="18" font-weight="400">Lista de materiais.txt</text>
+<text x="430" y="273" fill="#15352e" font-family="system-ui,sans-serif" font-size="15" font-weight="400">Arquivo de texto</text>
+</svg>

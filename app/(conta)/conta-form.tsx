@@ -10,6 +10,7 @@ import {
   reenviarConfirmacao,
 } from "@/app/conta-actions";
 import { passwordHint } from "@/lib/auth/password-policy";
+import PerfilFields from "./perfil-fields";
 
 const forms = {
   login: { title: "Entre na sua conta", button: "Entrar", action: entrar },
@@ -106,6 +107,7 @@ export function ContaForm({
           {mode === "redefinir" && (
             <input name="token" type="hidden" value={token ?? ""} />
           )}
+          {mode === "cadastro" && <PerfilFields perfil={state.perfil} />}
           {hasPassword && (
             <label className="conta-field">
               {mode === "redefinir" ? "Nova senha" : "Senha"}

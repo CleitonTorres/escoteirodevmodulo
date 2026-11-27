@@ -1,4 +1,5 @@
-import { informaticaBasicaVersion, lessons, monthNames, type Lesson } from "./lessons";
+import type { Lesson } from "./lesson-types";
+import { informaticaCurriculumVersion, informaticaLessons, informaticaMonths } from "./informatica-basica";
 
 export type Disciplina = {
   id: string;
@@ -18,10 +19,14 @@ export function isProgramacaoBasica({ id, nome }: Pick<Disciplina, "id" | "nome"
 export const informaticaBasica: Disciplina = {
   id: "informatica-basica",
   nome: "Informática básica",
-  aulas: lessons,
-  meses: monthNames,
-  versaoApostilaInformatica: informaticaBasicaVersion,
+  aulas: informaticaLessons,
+  meses: informaticaMonths,
+  versaoApostilaInformatica: informaticaCurriculumVersion,
 };
+
+export function usesLessonRoutine(disciplina: Pick<Disciplina, "id" | "nome">) {
+  return disciplina.id === informaticaBasica.id || isProgramacaoBasica(disciplina);
+}
 
 export const disciplinas: readonly Disciplina[] = [informaticaBasica];
 

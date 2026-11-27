@@ -4,8 +4,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, ty
 import type { PracticeEvent } from "@/lib/practice";
 import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, ChevronRight, Clipboard, Compass, Copy, Ellipsis,
-  Code2, FileText, Folder, Globe, House, Keyboard, Maximize2, Minus, Monitor, PanelTop, Plus, Scissors, Search,
-  SquarePen, Table2, Trash2, X,
+  Code2, FileText, Folder, Globe, House, Keyboard, LockKeyhole, Maximize2, Minus, Monitor, PanelTop, Plus, Power,
+  RotateCw, Scissors, Search, SquarePen, Table2, Trash2, X,
 } from "lucide-react";
 import {
   copyEntry, desktopApps, desktopFileApp, desktopNameLimit, desktopSlotLimit, desktopTrash as trash, hasName,
@@ -23,7 +23,8 @@ const nameOrder = new Intl.Collator("pt-BR", { numeric: true, sensitivity: "base
 const dateDisplay = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const sortColumns = [["name", "Nome"], ["modifiedAt", "Modificado em"], ["type", "Tipo"], ["size", "Tamanho"]] as const;
 type SortColumn = typeof sortColumns[number][0];
-export type ExplorerWindow = { open: boolean; history: FolderId[]; index: number; maximized: boolean };
+export type ExplorerWindow = { open: boolean; history: FolderId[]; index: number; maximized: boolean; minimized?: boolean };
+type PowerStage = "off" | "starting" | "sign-in" | "locked" | "running";
 
 type Menu = { id: string | null; x: number; y: number; trigger: HTMLElement };
 type Dialog = { type: "create"; kind: EntryKind } | { type: "rename" | "move" | "purge"; entry: DesktopEntry };
@@ -58,7 +59,7 @@ function dropAt(x: number, y: number, source: string) {
   if (slot !== undefined) return { type: "slot", slot: Number(slot) } as const;
 }
 
-export default function DesktopLab({ items, setItems, explorer, setExplorer, openApp, openFile, observe, verifyingFile, assistant }: {
+export default function DesktopLab({ items, setItems, explorer, setExplorer, openApp, openFile, observe, verifyingFile, assistant, startOff, flush }: {
   items: DesktopEntry[];
   setItems: (items: DesktopEntry[]) => string | undefined;
   explorer: ExplorerWindow;
@@ -68,6 +69,8 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
   observe: (event: PracticeEvent) => void;
   verifyingFile: boolean;
   assistant?: ReactNode;
+  startOff: boolean;
+  flush: () => Promise<boolean>;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{ id: string; cut: boolean } | null>(null);
@@ -76,6 +79,10 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
   const [notice, setNotice] = useState("");
   const [drag, setDrag] = useState<{ id: string; x: number; y: number; drop?: Drop } | null>(null);
   const [startOpen, setStartOpen] = useState(false);
+  const [powerMenu, setPowerMenu] = useState(false);
+  const [power, setPower] = useState<PowerStage>(startOff ? "off" : "running");
+  const [powerBusy, setPowerBusy] = useState(false);
+  const powerButton = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
   const [screenSlots, setScreenSlots] = useState(8);
   const [sort, setSort] = useState<{ column: SortColumn; descending: boolean }>({ column: "name", descending: false });
@@ -143,7 +150,17 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
     observer.observe(screen);
     fit();
     return () => observer.disconnect();
-  }, [explorer.open]);
+  }, [explorer.open, power]);
+
+  useEffect(() => {
+    if (power !== "starting") return;
+    const timeout = window.setTimeout(() => setPower("sign-in"), 650);
+    return () => window.clearTimeout(timeout);
+  }, [power]);
+
+  useEffect(() => {
+    if (power !== "running") powerButton.current?.focus();
+  }, [power]);
 
   useEffect(() => {
     if (!menu) return;
@@ -177,7 +194,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
   }, [startOpen]);
 
   function showLocation(next: ExplorerWindow) {
-    setExplorer(next);
+    setExplorer(next.open ? { ...next, minimized: false } : next);
     setQuery("");
     setStartOpen(false);
     setSelected(null);
@@ -196,6 +213,34 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
     }
   }
 
+  function minimize() {
+    showLocation({ ...explorer, open: false, minimized: true });
+    observe({ kind: "desktop-control", action: "window-minimize" });
+  }
+
+  function toggleExplorerFromTaskbar() {
+    if (explorer.open) { minimize(); return; }
+    if (explorer.minimized) observe({ kind: "desktop-control", action: "taskbar-restore" });
+    showLocation({ ...explorer, open: true });
+  }
+
+  async function changePower(action: "power-off" | "power-restart") {
+    setPowerBusy(true);
+    try {
+      if (!await flush()) {
+        setNotice("O trabalho ainda não foi salvo. Tente salvar antes de continuar.");
+        return;
+      }
+      showLocation({ open: false, history: [null], index: 0, maximized: false });
+      setClipboard(null);
+      setPowerMenu(false);
+      setPower(action === "power-off" ? "off" : "starting");
+      observe({ kind: "desktop-control", action });
+    } finally {
+      setPowerBusy(false);
+    }
+  }
+
   function commitItems(next: DesktopEntry[]) {
     const error = setItems(next);
     if (error) setNotice(error);
@@ -206,7 +251,15 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
     if (entry.deleted) return;
     if (entry.kind === "folder") goTo(entry.id);
     else if (entry.kind === "shortcut") openApp(entry.app);
-    else openFile(entry);
+    else {
+      if (explorer.open && search && entry.name.toLocaleLowerCase("pt-BR").includes(search)) {
+        observe({ kind: "desktop-control", action: "file-search" });
+      }
+      if (entry.name.toLocaleLowerCase("pt-BR") === "rascunho.docx" && entry.text?.trim()) {
+        observe({ kind: "desktop-control", action: "file-reopen" });
+      }
+      openFile(entry);
+    }
   }
 
   function showMenu(entry: DesktopEntry | undefined, trigger: HTMLElement, point?: { x: number; y: number }) {
@@ -320,7 +373,13 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
     if (drop?.type === "folder") move(entry, drop.id);
     if (drop?.type === "trash") recycle(entry);
     if (drop?.type === "slot" && !explorer.open) {
-      if (commitItems(placeDesktopEntry(items, entry, drop.slot))) return;
+      moveIcon(entry, drop.slot);
+    }
+  }
+
+  function moveIcon(entry: DesktopEntry, slot: number) {
+    if (slot !== entry.slot && !commitItems(placeDesktopEntry(items, entry, slot))) {
+      observe({ kind: "desktop-control", action: "move-icon" });
       setNotice(`${entry.name} foi reposicionado.`);
     }
   }
@@ -332,10 +391,14 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
         data-lab-folder={entry.kind === "folder" && !entry.deleted ? entry.id : undefined}
         data-drop={drag?.drop?.type === "folder" && drag.drop.id === entry.id}
         data-cut={clipboard?.cut && clipboard.id === entry.id}
-        onFocus={() => setSelected(entry.id)}
+        onFocus={(event) => {
+          setSelected(entry.id);
+          if (iconStyle && event.currentTarget.matches(":focus-visible")) observe({ kind: "desktop-control", action: "select-icon" });
+        }}
         onClick={(event) => {
           if (ignoreClick.current) { ignoreClick.current = false; return; }
           setSelected(entry.id);
+          if (iconStyle && event.detail > 0) observe({ kind: "desktop-control", action: "select-icon" });
           if (event.detail === 0) openItem(entry);
         }}
         onDoubleClick={() => openItem(entry)}
@@ -344,6 +407,14 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
           showMenu(entry, event.currentTarget, { x: event.clientX, y: event.clientY });
         }}
         onKeyDown={(event) => {
+          if (iconStyle && event.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+            event.preventDefault();
+            const direction = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
+            const count = Math.max(2, screenSlots);
+            moveIcon(entry, ((entry.slot ?? 0) + direction + count) % count);
+            requestAnimationFrame(() => iconGrid.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus());
+            return;
+          }
           if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
             event.preventDefault(); event.stopPropagation(); showMenu(entry, event.currentTarget);
           }
@@ -424,6 +495,12 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
     { label: "Excluir definitivamente…", run: () => setDialog({ type: "purge", entry: contextEntry }) },
   ] : contextEntry ? [
     { label: "Abrir", run: () => openItem(contextEntry) },
+    ...(!explorer.open ? [{ label: "Reposicionar ícone", run: () => {
+      const slot = Array.from({ length: screenSlots }, (_, index) => index).find((index) => !items.some((item) =>
+        item.parent === null && !item.deleted && item.slot === index));
+      if (slot !== undefined) moveIcon(contextEntry, slot);
+      else setNotice("Não há espaço livre na Área de trabalho para reposicionar este ícone.");
+    } }] : []),
     { label: "Renomear…", run: () => setDialog({ type: "rename", entry: contextEntry }) },
     { label: "Copiar", run: () => markClipboard(contextEntry, false) },
     { label: "Recortar", run: () => markClipboard(contextEntry, true) },
@@ -436,6 +513,27 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
     { label: "Novo atalho…", run: () => setDialog({ type: "create", kind: "shortcut" }) },
     ...(clipboard ? [{ label: "Colar aqui", run: () => paste(place) }] : []),
   ];
+
+  if (power !== "running") return <section className="desktop-lab" aria-label="Simulador de área de trabalho">
+    <div className="lab-power-screen">
+      <Monitor size={52} aria-hidden="true" />
+      <h2>{power === "off" ? "Computador desligado" : power === "starting" ? "Iniciando computador de treino" :
+        power === "locked" ? "Sessão bloqueada" : "Computador de treino"}</h2>
+      {power === "starting" ? <p role="status">Aguarde a tela de entrada.</p> :
+        <button type="button" className="primary-btn" ref={powerButton} onClick={() => {
+          if (power === "off") {
+            setPower("starting");
+            observe({ kind: "desktop-control", action: "power-on" });
+            return;
+          }
+          setPower("running");
+          if (power === "sign-in") observe({ kind: "desktop-control", action: "session-enter" });
+          if (power === "locked") observe({ kind: "desktop-control", action: "session-unlock" });
+          requestAnimationFrame(() => surface.current?.focus());
+        }}>{power === "off" ? "Ligar" : power === "locked" ? "Desbloquear sessão de treino" : "Entrar na sessão de treino"}</button>}
+    </div>
+    {assistant}
+  </section>;
 
   return (
     <section className="desktop-lab" aria-label="Simulador de área de trabalho" onKeyDown={keyboardActions} inert={verifyingFile}>
@@ -482,14 +580,20 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
             <header className="lab-window-title">
               <h2><Folder size={21} aria-hidden="true" /> {locationName}</h2>
               <div className="lab-window-controls">
-                <button type="button" aria-label="Minimizar janela" title="Minimizar janela" onClick={() => showLocation({ ...explorer, open: false })}><Minus size={19} /></button>
+                <button type="button" aria-label="Minimizar janela" title="Minimizar janela" onClick={minimize}><Minus size={19} /></button>
                 <button type="button" aria-label={explorer.maximized ? "Restaurar tamanho da janela" : "Maximizar janela"}
                   title={explorer.maximized ? "Restaurar tamanho da janela" : "Maximizar janela"}
-                  onClick={() => setExplorer({ ...explorer, maximized: !explorer.maximized })}>
+                  onClick={() => {
+                    observe({ kind: "desktop-control", action: explorer.maximized ? "window-restore-size" : "window-maximize" });
+                    setExplorer({ ...explorer, maximized: !explorer.maximized });
+                  }}>
                   {explorer.maximized ? <PanelTop size={19} /> : <Maximize2 size={19} />}
                 </button>
                 <button type="button" aria-label="Fechar janela" title="Fechar janela"
-                  onClick={() => showLocation({ open: false, history: [null], index: 0, maximized: false })}><X size={21} /></button>
+                  onClick={() => {
+                    showLocation({ open: false, history: [null], index: 0, maximized: false });
+                    observe({ kind: "desktop-control", action: "window-close" });
+                  }}><X size={21} /></button>
               </div>
             </header>
             <div className="lab-address-row">
@@ -567,7 +671,7 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
       <nav className="lab-taskbar" aria-label="Barra de tarefas do simulador">
         <div className="lab-start" ref={startArea}>
           <button type="button" className="lab-start-toggle" ref={startButton} aria-expanded={startOpen} aria-controls={startId}
-            onClick={() => { setMenu(null); setStartOpen(!startOpen); }}><Compass size={23} aria-hidden="true" /> Iniciar</button>
+            onClick={() => { setMenu(null); setPowerMenu(false); setStartOpen(!startOpen); }}><Compass size={23} aria-hidden="true" /> Iniciar</button>
           <div className="lab-start-menu" id={startId} hidden={!startOpen} aria-label="Menu Iniciar">
             <button type="button" onClick={() => showLocation({ ...explorer, open: true })}><Folder size={22} /> Explorador de arquivos</button>
             {desktopApps.map((app) => {
@@ -575,11 +679,25 @@ export default function DesktopLab({ items, setItems, explorer, setExplorer, ope
               return <button type="button" key={app} onClick={() => { setStartOpen(false); openApp(app); }}><Icon size={21} aria-hidden="true" /> {app}</button>;
             })}
             <button type="button" onClick={() => goTo(trash)}><Trash2 size={21} aria-hidden="true" /> Lixeira</button>
+            <button type="button" aria-expanded={powerMenu} onClick={() => setPowerMenu(!powerMenu)}><Power size={21} aria-hidden="true" /> Energia</button>
+            {powerMenu && <div className="lab-power-menu" role="group" aria-label="Ações de energia">
+              <button type="button" disabled={powerBusy} onClick={() => {
+                setStartOpen(false);
+                setPowerMenu(false);
+                setPower("locked");
+                observe({ kind: "desktop-control", action: "power-lock" });
+              }}><LockKeyhole size={19} aria-hidden="true" /> Bloquear</button>
+              <button type="button" disabled={powerBusy} onClick={() => void changePower("power-restart")}><RotateCw size={19} aria-hidden="true" /> Reiniciar</button>
+              <button type="button" disabled={powerBusy} onClick={() => void changePower("power-off")}><Power size={19} aria-hidden="true" /> Desligar</button>
+            </div>}
           </div>
         </div>
         <button type="button" title="Explorador de arquivos" aria-label="Explorador de arquivos" aria-pressed={explorer.open}
-          onClick={() => showLocation({ ...explorer, open: !explorer.open })}><Folder size={23} aria-hidden="true" /> <span>Explorador</span></button>
-        <button type="button" title="Navegador" aria-label="Navegador" onClick={() => openApp("Navegador")}><Globe size={22} aria-hidden="true" /></button>
+          onClick={toggleExplorerFromTaskbar}><Folder size={23} aria-hidden="true" /> <span>Explorador</span></button>
+        <button type="button" title="Navegador" aria-label="Navegador" onClick={() => {
+          observe({ kind: "desktop-control", action: "taskbar-browser" });
+          openApp("Navegador");
+        }}><Globe size={22} aria-hidden="true" /></button>
         <button type="button" title="Editor de código" aria-label="Editor de código" onClick={() => openApp("Editor de código")}><Code2 size={22} aria-hidden="true" /></button>
         <button type="button" title="Lixeira" aria-label="Abrir Lixeira" data-lab-trash data-drop={drag?.drop?.type === "trash"}
           aria-pressed={place === trash} onClick={() => goTo(trash)}><Trash2 size={22} aria-hidden="true" /></button>

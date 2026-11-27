@@ -1,24 +1,7 @@
 import { challenges } from "./browser-content";
+import { withLessonRoutine } from "./lesson-routine";
 import type { PracticeTask } from "../lib/practice";
-
-export type LessonResource = { title: string; url: string };
-
-export type Lesson = {
-  id: number;
-  month: number;
-  title: string;
-  subtitle: string;
-  icon: string;
-  objective: string;
-  theory: string[];
-  codeExample?: string;
-  practice: PracticeTask[];
-  exercise?: string[];
-  resources?: LessonResource[];
-  guide: string;
-  tool?: "arquivos" | "digitacao" | "navegador";
-  videoUrl?: string[];
-};
+import type { Lesson } from "./lesson-types";
 
 function securityTask(
   id: string,
@@ -39,11 +22,8 @@ const shoppingList = {
   itemCount: 3,
 } satisfies Omit<Extract<PracticeTask["check"], { kind: "sheet" }>, "step">;
 
-/**
- * Para adicionar ou remover tarefas, edite o array practice da aula em data/lessons.ts. Cada tarefa tem um id estável,
- * uma instrução em action, uma dica opcional em hint e o critério de verificação em check.
- */
-export const lessons: Lesson[] = [
+// Catálogo de referência para comparar e migrar aulas já salvas.
+const content: Lesson[] = [
   {
     id: 1,
     month: 1,
@@ -848,6 +828,7 @@ export const lessons: Lesson[] = [
   },
 ];
 
+export const legacyInformaticaLessons = content.map(withLessonRoutine);
 export const informaticaBasicaVersion = 1;
 
 export const monthNames: Record<number, string> = {

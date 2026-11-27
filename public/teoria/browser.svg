@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 290">
+<rect x="1" y="1" width="538" height="288" rx="11" fill="#ffffff" stroke="#9fb4aa"/>
+<rect x="2" y="2" width="536" height="39" rx="10" fill="#e6f0eb" stroke="none"/>
+<text x="17" y="27" fill="#193e33" font-family="system-ui,sans-serif" font-size="17" font-weight="700">Navegador de treino</text>
+<text x="440" y="26" fill="#15352e" font-family="system-ui,sans-serif" font-size="17" font-weight="400">―   □   ×</text>
+<rect x="10" y="48" width="520" height="43" rx="6" fill="#ebf2ef" stroke="none"/>
+<text x="24" y="76" fill="#15352e" font-family="system-ui,sans-serif" font-size="20" font-weight="400">←   →   ⟳</text>
+<rect x="115" y="53" width="392" height="33" rx="7" fill="#fff" stroke="#9fb4aa"/>
+<text x="132" y="76" fill="#15352e" font-family="system-ui,sans-serif" font-size="16" font-weight="400">Pesquisar ou digitar um endereço</text>
+<text x="25" y="146" fill="#15352e" font-family="system-ui,sans-serif" font-size="24" font-weight="700">Pesquisar na internet</text>
+<rect x="25" y="170" width="430" height="42" rx="7" fill="#edf4ef" stroke="#9fb4aa"/>
+<text x="40" y="197" fill="#15352e" font-family="system-ui,sans-serif" font-size="17" font-weight="400">Digite o que deseja encontrar</text>
+</svg>

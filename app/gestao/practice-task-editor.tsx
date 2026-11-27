@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { typingLevels } from "@/data/disciplinas";
 import { desktopApps, desktopNameLimit, desktopSheetRows, initialDesktopItems } from "@/lib/desktop-files";
 import type { PracticeCheck, PracticeTask } from "@/lib/practice";
+import { browserControls, desktopControls } from "@/lib/practice";
+import { situationOptions, situations, type Situation } from "@/data/informatica-situacoes";
 import { codeRules, desktopActions, documentAlignments, documentBlocks, entryTypes, favoritePages,
   practiceFromFields, practiceKinds, searchEngines, sheetSteps, shortcutActions,
   taskField, taskLimit } from "@/lib/practice-form";
@@ -168,6 +170,29 @@ function PathField({ label, name, value }: { label: string; name: string; value?
   </div>;
 }
 
+function SituationField({ name, initial }: { name: string; initial?: Situation }) {
+  const [scenario, setScenario] = useState<Situation | "">(initial ?? "");
+  const exercise = scenario ? situations[scenario] : undefined;
+  return <div className="practice-editor-field">
+    <Choice label="Exercício que o aluno vai responder" name={name} options={situationOptions} value={scenario}
+      onChange={(value) => setScenario(Object.hasOwn(situations, value) ? value as Situation : "")} required />
+    <small>O aluno escolhe uma resposta por etapa. Cada acerto libera a próxima pergunta.</small>
+    {exercise && <details className="practice-editor-preview">
+      <summary>Ver as {exercise.steps.length} etapas e respostas aceitas</summary>
+      <ol>
+        {exercise.steps.map((step) => <li key={step.prompt}>
+          <p>{step.prompt}</p>
+          <ul>
+            {step.options.map((option, index) => <li key={option}>
+              {index === step.answer ? <strong>{option} (resposta aceita)</strong> : option}
+            </li>)}
+          </ul>
+        </li>)}
+      </ol>
+    </details>}
+  </div>;
+}
+
 function CheckFields({ draft, previous, onAction }: {
   draft: Draft;
   previous: Draft[];
@@ -176,6 +201,14 @@ function CheckFields({ draft, previous, onAction }: {
   const field = (key: string) => taskField(draft.id, key);
   const saved = draft.initial?.check;
   switch (draft.kind) {
+    case "desktop-control":
+      return <Choice label="Controle do computador" name={field("action")} options={desktopControls}
+        defaultValue={saved?.kind === "desktop-control" ? saved.action : undefined} required />;
+    case "browser-control":
+      return <Choice label="Controle do navegador" name={field("action")} options={browserControls}
+        defaultValue={saved?.kind === "browser-control" ? saved.action : undefined} required />;
+    case "simulation":
+      return <SituationField name={field("scenario")} initial={saved?.kind === "simulation" ? saved.scenario : undefined} />;
     case "entry":
       return <EntryFields id={draft.id} check={saved?.kind === "entry" ? saved : undefined} />;
     case "desktop-event": {
@@ -214,6 +247,9 @@ function CheckFields({ draft, previous, onAction }: {
           <Choice label="Etapa a verificar" name={field("step")} options={sheetSteps} defaultValue={check?.step} required />
           <label>Quantidade de itens<input name={field("itemCount")} type="number" min={1} max={desktopSheetRows - 2}
             defaultValue={check?.itemCount ?? 3} required /></label>
+          <label>Quantidade do primeiro item, opcional para Preencher itens
+            <input name={field("firstQuantity")} type="number" min={1} max={1000000} defaultValue={check?.firstQuantity} />
+          </label>
         </div>
         <div className="management-fields">{["Item", "Quantidade", "Valor", "Subtotal"].map((heading, index) =>
           <label key={heading}>Cabeçalho da coluna {"ABCD"[index]}<input name={field(`header${index + 1}`)} required
@@ -273,6 +309,7 @@ function WordFields({ id, check }: { id: string; check?: Extract<PracticeCheck, 
       {(block === "heading" || (block === check?.block.type && check.distinctHeadings !== undefined)) &&
         <label>Mínimo de títulos diferentes, opcional<input name={field("distinctHeadings")} type="number" min={1} max={100} defaultValue={check?.distinctHeadings} /></label>}
     </div>
+    <label>Trecho exigido, opcional<input name={field("contains")} maxLength={160} defaultValue={check?.block.contains} /></label>
     {(block === "heading" || block === "paragraph" || (block === check?.block.type && check.block.bold)) &&
       <label className="management-check"><input name={field("bold")} type="checkbox" defaultChecked={check?.block.bold} /> Exigir texto em negrito</label>}
   </>;

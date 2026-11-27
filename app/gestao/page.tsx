@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, Compass, LogOut, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Compass, LogOut, Receipt, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { currentAccount } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/roles";
 import { listarDisciplinas } from "@/lib/catalogo";
 import { sair } from "../conta-actions";
 import CatalogEditor from "./catalog-editor";
+import DevinhoUsage from "./devinho-usage";
 import Reports, { managementLink } from "./reports";
 import "./management.css";
 
@@ -15,6 +16,7 @@ type Query = {
   aula?: string;
   aluno?: string;
   apos?: string;
+  mes?: string;
 };
 
 export default async function ManagementPage({
@@ -28,14 +30,17 @@ export default async function ManagementPage({
   const query = await searchParams;
   const admin = canManage(account.role, "promover-contas");
   if (query.secao === "contas" && !admin) redirect("/gestao?secao=relatorios");
+  const canViewUsage = canManage(account.role, "uso-devinho");
+  if (query.secao === "devinho" && !canViewUsage) redirect("/gestao?secao=relatorios");
   const section =
     query.secao === "relatorios" ||
     query.secao === "catalogo" ||
-    query.secao === "contas"
+    query.secao === "contas" ||
+    query.secao === "devinho"
       ? query.secao
       : undefined;
   const disciplines =
-    section && section !== "contas" ? await listarDisciplinas() : [];
+    section === "catalogo" || section === "relatorios" ? await listarDisciplinas() : [];
   const discipline = query.disciplina
     ? disciplines.find(({ id }) => id === query.disciplina)
     : disciplines[0];
@@ -62,6 +67,12 @@ export default async function ManagementPage({
           },
         ]
       : []),
+    ...(canViewUsage ? [{
+      id: "devinho",
+      label: "Consumo do Devinho",
+      icon: Receipt,
+      description: "Veja os gastos da API em dólar e em reais.",
+    }] : []),
   ];
   return (
     <div className="management-shell">
@@ -91,6 +102,7 @@ export default async function ManagementPage({
           {links.map(({ id, label, icon: Icon, description }) => (
             <Link
               href={managementLink({ secao: id })}
+              prefetch={id === "devinho" ? false : undefined}
               key={id}
               aria-current={section === id ? "page" : undefined}
             >
@@ -111,6 +123,7 @@ export default async function ManagementPage({
             selectedLesson={query.aula}
           />
         )}
+        {section === "devinho" && <DevinhoUsage month={query.mes} />}
         {(section === "relatorios" || section === "contas") && (
           <Reports
             role={account.role}

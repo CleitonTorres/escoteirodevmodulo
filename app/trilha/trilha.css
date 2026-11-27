@@ -138,13 +138,26 @@
   background: #f5ebd2;
 }
 .practice-assistant-icon {
-  display: grid;
-  place-items: center;
+  position: relative;
   flex: none;
-  inline-size: 2.125rem;
-  block-size: 2.125rem;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
   border-radius: 50%;
   background: #f3cb78;
+}
+.practice-assistant-icon img { display: block; inline-size: 100%; block-size: 100%; }
+.practice-assistant-complete {
+  position: absolute;
+  inset-inline-end: -0.125rem;
+  inset-block-end: -0.125rem;
+  display: grid;
+  place-items: center;
+  inline-size: 1.0625rem;
+  block-size: 1.0625rem;
+  border: 1px solid #fffdf6;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--forest);
 }
 .practice-assistant-body {
   min-block-size: 0;
@@ -164,6 +177,17 @@
 }
 .practice-assistant-body button {
   margin-block-start: 0.75rem;
+}
+.practice-assistant-body .practice-answers {
+  display: grid;
+  gap: 0.5rem;
+}
+.practice-assistant-body .practice-answers button {
+  margin: 0;
+  min-block-size: var(--touch-size);
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 @media (prefers-reduced-motion: no-preference) {
   .practice-assistant[data-minimized="false"] .practice-assistant-icon {
@@ -216,6 +240,17 @@
 }
 .practice-checklist > li > button { margin-block-start: 0.75rem; }
 .practice-hint { white-space: pre-line; }
+.devinho-help { margin-block-start: 0.65rem; }
+.devinho-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.practice-assistant .devinho-actions button { margin: 0; }
+.practice-situation {
+  margin-block-start: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--white);
+}
+.practice-situation-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.375rem 0.75rem; }
 .practice-answers,
 .practice-shortcuts {
   margin-block-start: 0.75rem;
@@ -298,6 +333,15 @@
 .sidebar-footer b {
   font-size: 1rem;
   overflow-wrap: anywhere;
+}
+.profile-name a {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-block-size: var(--touch-size);
+  color: #d7e4dc;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .logout-btn,
@@ -646,12 +690,12 @@
   min-inline-size: 0;
 }
 .objective,
-.theory-block p,
 .guide-aside p,
 .lesson-resources,
 .lesson-exercise {
   margin-block: 1rem;
 }
+.objective { white-space: pre-line; }
 .lesson-resources :is(h3, ul),
 .lesson-exercise :is(h3, ol) {
   margin-block: 0.5rem;
@@ -678,6 +722,14 @@
 }
 .theory-index {
   font-size: var(--text-medium);
+}
+.theory-block > .theory-figure {
+  grid-column: 2;
+  min-inline-size: 0;
+}
+.theory-block > .theory-figure > :is(img, svg) {
+  max-block-size: 400px;
+  object-fit: contain;
 }
 .lesson-videos {
   display: grid;
@@ -1081,4 +1133,14 @@
 .journal-note label { font-weight: 700; }
 .journal-note textarea { width: 100%; min-height: 9rem; resize: vertical; padding: 0.75rem; font: inherit; }
 .journal-note button { justify-self: start; }
-.journal-legacy { white-space: pre-wrap; overflow-wrap: anywhere; }
+.journal-link { justify-self: start; }
+.journal-entries { display: grid; gap: 1rem; }
+.journal-entry {
+  margin: 0;
+  padding: 1rem clamp(1rem, 2vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--white);
+}
+.journal-entry h2 { margin: 0; font-size: 1.25rem; }
+.journal-entry-text { max-inline-size: 75ch; white-space: pre-wrap; overflow-wrap: anywhere; }

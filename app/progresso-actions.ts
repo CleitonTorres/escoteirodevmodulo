@@ -24,7 +24,8 @@ async function salvarProgresso(
     const account = await currentAccount();
     if (account) {
       const visualizacao = account.role !== "aluno";
-      const result = await save(await progressoAluno(account._id, disciplina.id, visualizacao), visualizacao ? previewStart : undefined);
+      const result = await save(await progressoAluno(account._id, disciplina.id, visualizacao, account.passwordVersion),
+        visualizacao ? previewStart : undefined);
       if (result) return { ok: false, error: result.error } as const;
       return { ok: true } as const;
     }
@@ -78,7 +79,8 @@ export async function registrarPratica(disciplinaId: string, lessonId: number, o
       const proof = matchPracticeEvent(lessonId, task, observation, saved);
       if (proof) evidence[practiceKey(lessonId, task.id)] = proof;
     }
-    if (Object.keys(evidence).length) await store.recordPractice(evidence);
+    if (Object.keys(evidence).length) await store.recordPractice(evidence,
+      Boolean(observation && typeof observation === "object" && "kind" in observation && observation.kind === "simulation"));
   }, previewStart);
   return result.ok ? { ...result, evidence } : result;
 }
@@ -146,7 +148,8 @@ export async function salvarDesktop(disciplinaId: string, value: unknown, revisi
   try {
     const account = await currentAccount();
     if (account) {
-      const savedRevision = await (await progressoAluno(account._id, disciplina.id, account.role !== "aluno")).saveDesktop(items, revision);
+      const store = await progressoAluno(account._id, disciplina.id, account.role !== "aluno", account.passwordVersion);
+      const savedRevision = await store.saveDesktop(items, revision);
       return savedRevision === null
         ? { ok: false, error: "O desktop foi alterado em outra aba. Recarregue a página para abrir a versão salva." } as const
         : { ok: true, revision: savedRevision } as const;

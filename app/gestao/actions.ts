@@ -37,7 +37,7 @@ export async function promoverConta(_: Result, form: FormData) {
     const roles = role === "administrador" ? ["aluno", "professor"] as const : ["aluno"] as const;
     const updated = await alunos.updateOne(
       { _id: new ObjectId(id), $or: [{ role: { $in: roles } }, { role: { $exists: false } }] },
-      { $set: { role }, $inc: { passwordVersion: 1 } },
+      { $set: { role }, $inc: { passwordVersion: 1 }, $unset: { emailChange: "", accountDeletion: "" } },
     );
     if (!updated.modifiedCount) return "A conta já está nesse perfil ou não pode ser promovida.";
   }, "Perfil atualizado. A conta precisa entrar novamente para usar o novo acesso.");

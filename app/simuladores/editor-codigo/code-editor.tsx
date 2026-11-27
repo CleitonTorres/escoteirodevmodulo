@@ -10,6 +10,35 @@ import "./code-editor.css";
 type LogLine = { level: "log" | "warn" | "error"; text: string };
 const htmlFile = (name: string) => /\.html?$/i.test(name);
 
+const fileTypes = [
+  { extension: "js", label: "JavaScript" },
+  { extension: "html", label: "HTML" },
+  { extension: "css", label: "CSS" },
+  { extension: "json", label: "JSON" },
+  { extension: "md", label: "Markdown" },
+  { extension: "txt", label: "Texto simples" },
+];
+
+export function NewCodeFileForm({ create }: { create: (name: string) => void }) {
+  return <form className="code-new-file" onSubmit={(event) => {
+    event.preventDefault();
+    const extension = new FormData(event.currentTarget).get("extension");
+    const format = fileTypes.find((type) => type.extension === extension);
+    if (format) create(`Novo arquivo.${format.extension}`);
+  }}>
+    <label>
+      Tipo de arquivo
+      <select name="extension" defaultValue="" required>
+        <option value="" disabled>Escolha um tipo</option>
+        {fileTypes.map(({ extension, label }) => (
+          <option key={extension} value={extension}>{label} (.{extension})</option>
+        ))}
+      </select>
+    </label>
+    <button type="submit" className="primary-btn">Criar e abrir</button>
+  </form>;
+}
+
 export default function CodeEditor({ file, items, open, change }: {
   file: DesktopFile;
   items: DesktopEntry[];

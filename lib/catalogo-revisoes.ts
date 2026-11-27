@@ -1,19 +1,65 @@
-import type { Lesson } from "@/data/lessons";
+import { isDeepStrictEqual } from "node:util";
+import { legacyInformaticaLessons } from "@/data/informatica-basica-legado";
+import type { Lesson } from "@/data/lesson-types";
+import type { TheoryItem } from "@/data/lesson-theory";
+import { informaticaLessons } from "@/data/informatica-basica";
+import { energyExercise } from "@/data/informatica-situacoes";
 import { programacaoBasicaAulas } from "@/data/programacao-basica";
 import type { PracticeTask } from "./practice";
 
-const merge = (current: string[], additions: string[]) => [...new Set([...current, ...additions])];
+function mergeTheory(current: TheoryItem[], additions: TheoryItem[]) {
+  const text = (item: TheoryItem) => typeof item === "string" ? item : item.text;
+  const seen = new Set(current.map(text));
+  return [...current, ...additions.filter((item) => {
+    const value = text(item);
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  })];
+}
 const same = (left: readonly string[] | undefined, right: readonly string[] | undefined) =>
   left?.length === right?.length && (left?.every((item, index) => item === right?.[index]) ?? true);
+
+export function expandInformaticaLessons(savedLessons: Lesson[], nextLessonId: number): Lesson[] {
+  const saved = new Map(savedLessons.map((lesson) => [lesson.id, lesson]));
+  const legacy = new Map(legacyInformaticaLessons.map((lesson) => [lesson.id, lesson]));
+  const editable = ["title", "subtitle", "objective", "theory", "practice", "guide", "tool",
+    "videoUrl", "resources", "exercise", "codeExample", "icon"] as const;
+  let next = Math.max(13, nextLessonId, ...savedLessons.map(({ id }) => id + 1));
+  const expanded = informaticaLessons.map((lesson) => {
+    const previous = legacy.get(lesson.id);
+    if (!previous) return { ...lesson, id: next++ };
+    const current = saved.get(lesson.id);
+    if (!current) return lesson;
+    saved.delete(lesson.id);
+    const custom = Object.fromEntries(editable.filter((key) => !isDeepStrictEqual(previous[key], current[key]))
+      .map((key) => [key, current[key]]));
+    return { ...lesson, ...custom };
+  });
+  return [...expanded, ...saved.values()];
+}
 
 export function revisarAulaInformatica(lesson: Lesson, original: Lesson) {
   const ids = new Set(lesson.practice.map(({ id }) => id));
   const additions = original.practice.filter(({ id }) => id.startsWith("revisao-") && !ids.has(id));
   return {
     ...lesson,
-    theory: merge(lesson.theory, original.theory.slice(lesson.id === 11 ? -6 : -5)),
+    theory: mergeTheory(lesson.theory, original.theory.slice(lesson.id === 11 ? -6 : -5)),
     practice: [...lesson.practice, ...additions],
   };
+}
+
+export function esclarecerExercicioEnergia(lesson: Lesson): Lesson {
+  const index = lesson.practice.findIndex(({ id, check }) =>
+    id === "energia" && check.kind === "simulation" && check.scenario === "energia");
+  if (index < 0) return lesson;
+  const task = lesson.practice[index];
+  const action = task.action === "Escolha a ação certa em três situações." ? energyExercise.action : task.action;
+  const hint = task.hint === "Pense se você vai voltar logo, recomeçar o sistema ou encerrar o dia." ? energyExercise.hint : task.hint;
+  if (action === task.action && hint === task.hint) return lesson;
+  const practice = [...lesson.practice];
+  practice[index] = { ...task, action, hint };
+  return { ...lesson, practice };
 }
 
 const legacyMarkers: Record<number, string[]> = {
@@ -99,7 +145,7 @@ export function revisarAulaProgramacao(lesson: Lesson, version: number): Lesson 
     ...current,
     practice,
     ...(remaining?.length && { exercise: remaining }),
-    ...(version < 2 && { theory: merge(lesson.theory, original.theory), guide: original.guide, tool: original.tool ?? lesson.tool }),
+    ...(version < 2 && { theory: mergeTheory(lesson.theory, original.theory), guide: original.guide, tool: original.tool ?? lesson.tool }),
     codeExample: lesson.codeExample && !(index === 1 && lesson.codeExample === legacyVariablesExample)
       ? lesson.codeExample : original.codeExample,
   };

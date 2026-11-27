@@ -1,6 +1,7 @@
 import Link from "next/link";
-import type { Lesson } from "@/data/lessons";
-import { isProgramacaoBasica, type Disciplina } from "@/data/disciplinas";
+import type { Lesson } from "@/data/lesson-types";
+import { informaticaBasica, isProgramacaoBasica, usesLessonRoutine, type Disciplina } from "@/data/disciplinas";
+import { objectiveLimit, objectiveWithRoutineLimit } from "@/data/lesson-routine";
 import { canManage, type Role } from "@/lib/auth/roles";
 import {
   excluirAula,
@@ -13,6 +14,8 @@ import { managementLink } from "./reports";
 import ManageForm from "./manage-form";
 import PracticeTaskEditor from "./practice-task-editor";
 import LessonVideoEditor from "./lesson-video-editor";
+import LessonTheoryEditor from "./lesson-theory-editor";
+import { theoryImagePolicy } from "@/lib/theory-form";
 
 export default function CatalogEditor({
   role,
@@ -154,7 +157,7 @@ export default function CatalogEditor({
                 Nova aula
               </Link>
 
-              {discipline.aulas.map((item) => (
+              {discipline.aulas.map((item, index) => (
                 <Link
                   key={item.id}
                   href={managementLink({
@@ -164,7 +167,7 @@ export default function CatalogEditor({
                   })}
                   aria-current={lesson?.id === item.id ? "page" : undefined}
                 >
-                  {`${item.id} - ${item.title}`}
+                  {`${discipline.id === informaticaBasica.id ? index + 1 : item.id} - ${item.title}`}
                 </Link>
               ))}
             </nav>
@@ -271,22 +274,13 @@ function LessonEditor({
           Objetivo
           <textarea
             name="objective"
-            rows={2}
-            maxLength={1000}
+            rows={usesLessonRoutine(discipline) ? 8 : 2}
+            maxLength={usesLessonRoutine(discipline) ? objectiveWithRoutineLimit : objectiveLimit}
             defaultValue={lesson?.objective}
             required
           />
         </label>
-        <label>
-          Teoria, com um parágrafo por linha
-          <textarea
-            name="theory"
-            rows={5}
-            defaultValue={lesson?.theory.join("\n")}
-            maxLength={20020}
-            required
-          />
-        </label>
+        <LessonTheoryEditor theory={lesson?.theory} imagePolicy={theoryImagePolicy()} />
         {(isProgramacaoBasica(discipline) || lesson?.codeExample) && <label>
           Exemplo de código da teoria
           <textarea name="codeExample" rows={5} maxLength={6000} defaultValue={lesson?.codeExample} />

@@ -1,8 +1,12 @@
 import { typingLevels } from "@/data/disciplinas";
-import type { Lesson, LessonResource } from "@/data/lessons";
+import { lessonRoutine, objectiveLimit, objectiveWithRoutineLimit } from "@/data/lesson-routine";
+import type { Lesson, LessonResource } from "@/data/lesson-types";
+import { readTheory } from "./theory-form";
 import { desktopApps, desktopSheetRows, isCodeFile, validDesktopName } from "@/lib/desktop-files";
 import { validJavascriptMarker } from "@/lib/code-practice";
 import type { PracticeCheck, PracticeTask } from "@/lib/practice";
+import { browserControls, desktopControls } from "@/lib/practice";
+import { situationOptions } from "@/data/informatica-situacoes";
 import { pageAddress, resolveAddress } from "@/data/browser-content";
 import { codeRules, desktopActions, documentAlignments, documentBlocks, entryTypes, practiceFromFields,
   searchEngines, sheetSteps, shortcutActions, taskLimit } from "@/lib/practice-form";
@@ -44,6 +48,9 @@ function readCheck(value: unknown): value is PracticeCheck {
         (value.app === undefined || (value.entry === "shortcut" && oneOf(value.app, desktopApps))) &&
         (value.itemId === undefined || text(value.itemId, 64));
     case "typing": return whole(value.level, 1, typingLevels.length);
+    case "desktop-control": return supported(value.action, desktopControls);
+    case "browser-control": return supported(value.action, browserControls);
+    case "simulation": return supported(value.scenario, situationOptions);
     case "code": {
       if (!path(value.file) || (value.quickStart !== undefined && typeof value.quickStart !== "boolean")) return false;
       const file = value.file.at(-1) ?? "";
@@ -60,11 +67,13 @@ function readCheck(value: unknown): value is PracticeCheck {
         (block.minLength === undefined || whole(block.minLength, 1, 50000)) &&
         (block.minItems === undefined || whole(block.minItems, 1, 100)) &&
         (block.bold === undefined || typeof block.bold === "boolean") &&
+        (block.contains === undefined || text(block.contains, 160)) &&
         (value.distinctHeadings === undefined || whole(value.distinctHeadings, 1, 100));
     }
     case "sheet":
       return path(value.file) && Array.isArray(value.headers) && value.headers.length === 4 &&
         value.headers.every((header) => text(header, 100)) && whole(value.itemCount, 1, desktopSheetRows - 2) &&
+        (value.firstQuantity === undefined || (value.step === "items" && whole(value.firstQuantity, 1, 1_000_000))) &&
         supported(value.step, sheetSteps);
     case "quiz": return Array.isArray(value.options) && value.options.length >= 2 && value.options.length <= 8 &&
       value.options.every((option) => text(option, 500)) && new Set(value.options).size === value.options.length &&
@@ -109,8 +118,9 @@ function readPractice(form: FormData): PracticeTask[] | undefined {
 export function readLesson(form: FormData): Omit<Lesson, "id"> | string {
   const title = field(form, "title");
   const subtitle = field(form, "subtitle");
-  const objective = field(form, "objective");
-  const theory = lines(field(form, "theory"));
+  const objective = field(form, "objective").replace(/\r\n?/g, "\n");
+  const theory = readTheory(form.get("theoryBlocks"));
+  if (typeof theory === "string") return theory;
   const codeExample = field(form, "codeExample");
   const exercise = lines(field(form, "exercise"));
   const resourceLines = lines(field(form, "resources"));
@@ -121,8 +131,9 @@ export function readLesson(form: FormData): Omit<Lesson, "id"> | string {
   const videoUrl = [...new Set(videoFields.flatMap((value) => String(value).split(/\r?\n/).map((url) => url.trim()).filter(Boolean)))];
   const selectedTool = field(form, "tool");
   const icon = field(form, "icon") || "📘";
-  if (!text(title, 150) || !text(subtitle, 200) || !text(objective, 1000) || !text(guide, 1600) ||
-    !whole(month, 1, 36) || !theory.length || theory.length > 20 || theory.some((line) => !text(line, 1000)) ||
+  if (!text(title, 150) || !text(subtitle, 200) || !text(objective, objectiveWithRoutineLimit) ||
+    objective.replace(lessonRoutine, "").trim().length > objectiveLimit || !text(guide, 1600) ||
+    !whole(month, 1, 36) ||
     icon.length > 12 || codeExample.length > 6000) return "Revise os campos da aula.";
   if (videoUrl.some((url) => !https(url))) return "Informe um endereço HTTPS válido para cada vídeo.";
   const tool = selectedTool === "arquivos" || selectedTool === "digitacao" || selectedTool === "navegador"
